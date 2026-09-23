@@ -1,0 +1,8 @@
+# Toolforge jobs framework: `toolforge jobs load jobs.yaml`
+# Credentials: toolforge envvars create ADMINHELPERBOT_USERNAME 'AdminHelperBot@AdminHelperBot'
+#              toolforge envvars create ADMINHELPERBOT_PASSWORD '<bot password>'
+- name: adminhelperbot
+  command: cd $HOME/AdminHelperBOT && venv/bin/python -m adminhelperbot -c config.json
+  image: python3.11
+  continuous: true
+  emails: onfailure
