@@ -28,7 +28,7 @@
 
   "_ফাইল_ও_নিরাপত্তা": "texts_file: null = adminhelperbot/texts.toml; run_page: জরুরি বন্ধের পাতা (null = বন্ধ-সুবিধা নেই), পাতায় 'চালু' থাকলে তবেই বট সম্পাদনা করে; state_file: বটের ছোট স্মৃতি-ফাইল; dry_run: true হলে কোনো সম্পাদনা করে না, শুধু দেখায়।",
   "texts_file": null,
-  "run_page": "ব্যবহারকারী:AdminHelperBot/চালু",
+  "run_page": "ব্যবহারকারী:MdsShakil/খেলাঘর_২",
   "state_file": "state.json",
   "dry_run": false
 }
