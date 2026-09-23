@@ -21,7 +21,7 @@
   "_আচরণ": "archive_decided_requests: সিদ্ধান্ত-হওয়া অনুরোধে {{subst:সহঅ}} যোগ করবে কি না; stale_add_archive_template: বাসি অনুরোধে {{subst:সহঅ}}; reply_indent: উত্তরের শুরুতে ':' চাইলে; display_tz_offset_minutes: সময় লেখার সময়-অঞ্চল (০ = ইউটিসি, ৩৬০ = বাংলাদেশ; লেবেলটি texts.toml-এ); require_block_keywords: শুধু বাধাদানের অনুরোধে কাজ।",
   "archive_decided_requests": true,
   "stale_add_archive_template": true,
-  "reply_indent": "",
+  "reply_indent": ":",
   "display_tz_offset_minutes": 0,
   "require_block_keywords": true,
   "temp_account_regex": "~\\d{4}-\\d+(?:-\\d+)*",
