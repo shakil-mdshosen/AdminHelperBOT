@@ -6,7 +6,7 @@
   "stale_inactivity_hours": 60,
   "reply_indent": "",
   "automated_note": "<small>(স্বয়ংক্রিয় বট বার্তা)</small>",
-  "stale_add_archive_template": false,
+  "stale_add_archive_template": true,
   "display_tz_offset_minutes": 0,
   "display_tz_label": "ইউটিসি",
   "run_page": "ব্যবহারকারী:AdminHelperBot/চালু",

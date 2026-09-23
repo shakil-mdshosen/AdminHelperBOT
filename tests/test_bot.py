@@ -114,10 +114,10 @@ def test_stale_temp_account(wiki, tmp_path):
     sec = section_text(wiki.text, "অস্থায়ী অ্যাকাউন্ট ~2026-10001-01 কে বাধাদান")
     assert ("বাধা দেওয়ার প্রয়োজন নেই, অস্থায়ী অ্যাকাউন্ট থেকে সর্বশেষ সম্পাদনা "
             "২০ সেপ্টেম্বর ২০২৬, ০৯:১৫ (ইউটিসি) টায় হয়েছে। "
-            "<small>(স্বয়ংক্রিয় বট বার্তা)</small> --~~~~") in sec
-    assert "{{subst:সহঅ}}" not in sec
+            "<small>(স্বয়ংক্রিয় বট বার্তা)</small> --~~~~\n{{subst:সহঅ}}\n") in sec
     s = wiki.edits[0]["summary"]
     assert "অপ্রয়োজনীয়" in s and "~2026-10001-01" in s and len(s) <= 500
+    assert "{{সহঅ}}" in s
     # Idempotent.
     wiki.clock += timedelta(minutes=5)
     bot.run_once()

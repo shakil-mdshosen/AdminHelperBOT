@@ -111,5 +111,7 @@ def stale_summary(title: str, decision: Decision, cfg: Config) -> str:
     details = (f"রিপোর্ট করার {no_action} ঘণ্টার মধ্যে অস্থায়ী অ্যাকাউন্ট {names}-এর "
                f"বিরুদ্ধে কোনো প্রশাসক বা স্টুয়ার্ড পদক্ষেপ নেননি এবং গত {inactive} "
                f"ঘণ্টায় কোনো সম্পাদনা হয়নি ({last})")
-    tail = f"। {cfg.summary_suffix}"
+    archive = (f"; সংগ্রহশালাভুক্তির জন্য {{{{{cfg.archive_template}}}}} যোগ করা হয়েছে"
+               if cfg.stale_add_archive_template else "")
+    tail = f"{archive}। {cfg.summary_suffix}"
     return _fit(core + details + tail, core, details, tail)

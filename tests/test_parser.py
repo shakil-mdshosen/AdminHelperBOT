@@ -12,7 +12,8 @@ SAMPLE = (Path(__file__).parent / "sample_noticeboard.txt").read_text(encoding="
 def make_parser():
     c = Config()
     return NoticeboardParser(c.resolved_templates, c.report_templates,
-                             c.resolved_phrases, c.block_keywords, c.temp_account_regex)
+                             c.resolved_phrases, c.block_keywords, c.temp_account_regex,
+                             c.heading_account_regex, c.heading_name_separator_regex)
 
 
 def by_title(infos):
@@ -111,3 +112,30 @@ def test_marker_in_comment_counts_as_resolved():
 
 def test_nfc_keywords():
     assert nfc("অস্থায়ী") == nfc("অস্থায়ী")
+
+
+def test_keywords_must_start_a_word_and_ignore_markup():
+    p = make_parser()
+    sig = "[[ব্যবহারকারী:কুউ পুলক|কুউ পুলক]] ১৫:০৩, ৮ জুন ২০২৬ (ইউটিসি)"
+    # "লক" inside পুলক / মূলক, "block" inside a URL: not block requests
+    assert not p.parse(f"== টেমপ্লেট তৈরি ==\nঅনুরোধ। {sig}\n")[0].looks_like_block_request
+    assert not p.parse(f"== x ==\nপ্রচারণামূলক লেখা। {sig}\n")[0].looks_like_block_request
+    assert not p.parse("== x ==\n{{ওয়েব উদ্ধৃতি|ইউআরএল=https://e.org/Block.pdf}} "
+                       f"{sig}\n")[0].looks_like_block_request
+    # real keywords at the start of a word still count, with suffixes
+    assert p.parse(f"== বাধাদানের অনুরোধ ==\nx {sig}\n")[0].looks_like_block_request
+    assert p.parse(f"== x ==\nঅ্যাকাউন্টটি লক করুন {sig}\n")[0].looks_like_block_request
+    assert p.parse(f"== x ==\nPlease block. {sig}\n")[0].looks_like_block_request
+
+
+def test_heading_name_list():
+    p = make_parser()
+    sig = "[[User:R|R]] 01:00, 1 January 2026 (UTC)"
+    info = p.parse(f"== বাধাদানের অনুরোধ: A, B ও C ==\nx {sig}\n")[0]
+    assert [(a.name, a.from_heading_text) for a in info.accounts] == [
+        ("A", True), ("B", True), ("C", True)]
+    # a name also linked in the body is a confirmed (non-heading) account
+    info = p.parse(f"== বাধাদানের অনুরোধ: A ==\n[[বিশেষ:অবদান/A]] {sig}\n")[0]
+    assert [(a.name, a.from_heading_text) for a in info.accounts] == [("A", False)]
+    # headings without the "অনুরোধ:" form give no plain-text names
+    assert make_parser().parse(f"== ব্যবস্থা নিন ==\nx {sig}\n")[0].accounts == []

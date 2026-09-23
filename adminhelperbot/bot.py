@@ -52,9 +52,12 @@ class AdminHelperBot:
         self.checker = StatusChecker(self.api, self.meta)
         self.parser = NoticeboardParser(cfg.resolved_templates, cfg.report_templates,
                                         cfg.resolved_phrases, cfg.block_keywords,
-                                        cfg.temp_account_regex)
+                                        cfg.temp_account_regex,
+                                        cfg.heading_account_regex,
+                                        cfg.heading_name_separator_regex)
         self.state = self._load_state()
         self._dry_handled: Set[str] = set()
+        self._missing_cache: Dict[str, bool] = {}
 
     # ------------------------------------------------------------------ setup
     def setup(self) -> None:
@@ -198,6 +201,8 @@ class AdminHelperBot:
             now = self.api.now()
             requests_ = [r for r in self.parser.parse(rev.text)
                          if not r.is_resolved and r.accounts and r.report_time]
+            self._confirm_heading_accounts(requests_)
+            requests_ = [r for r in requests_ if r.accounts]
             missing = [a for r in requests_ for a in r.accounts if a.name not in statuses]
             if missing:
                 statuses.update(self.checker.fetch(missing))
@@ -248,6 +253,27 @@ class AdminHelperBot:
                     log.error("Too many edit conflicts; giving up this round")
                     return next_due
                 time.sleep(3)
+
+    def _confirm_heading_accounts(self, requests_) -> None:
+        """Keep plain-text heading names only if every one of them exists.
+
+        "বাধাদানের অনুরোধ: Mr. Souraj ও Mr. Ranju Maity" is trusted only when
+        both accounts exist; if any piece is not an account the heading was
+        not a clean list of names, so all heading names are dropped.
+        """
+        unknown = [a.name for r in requests_ for a in r.accounts
+                   if a.from_heading_text and a.name not in self._missing_cache]
+        if unknown:
+            missing = self.checker.missing_accounts(unknown)
+            for name in unknown:
+                self._missing_cache[name] = name in missing
+        for r in requests_:
+            heading = [a for a in r.accounts if a.from_heading_text]
+            if any(self._missing_cache.get(a.name, True) for a in heading):
+                if heading:
+                    log.info("[%s] heading names %s not all existing accounts; ignored",
+                             r.section.title, [a.name for a in heading])
+                r.accounts = [a for a in r.accounts if not a.from_heading_text]
 
     def loop(self) -> None:
         interval = timedelta(minutes=self.cfg.check_interval_minutes)

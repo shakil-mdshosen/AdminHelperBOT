@@ -48,6 +48,8 @@ class Account:
     name: str
     is_temp: bool = False
     is_ip: bool = False
+    # Found only as plain text in the heading: must be confirmed to exist.
+    from_heading_text: bool = False
 
 
 @dataclass
@@ -105,6 +107,12 @@ def _tpl_name(tpl) -> str:
     return re.sub(r"[\s_]+", " ", name).lower()
 
 
+def _plain(wikitext: str) -> str:
+    """Visible text only: no markup, link targets, templates or URLs."""
+    text = mwparserfromhell.parse(wikitext).strip_code(normalize=True, collapse=True)
+    return re.sub(r"https?://\S+", " ", text)
+
+
 def _first_comment(body: str) -> str:
     """Text of the report itself: everything up to the first signature."""
     m = SIGNATURE_TS_RE.search(nfc(body))
@@ -116,12 +124,21 @@ class NoticeboardParser:
                  report_templates: Iterable[str],
                  resolved_phrases: Iterable[str],
                  block_keywords: Iterable[str],
-                 temp_account_regex: str):
+                 temp_account_regex: str,
+                 heading_account_regex: str = "",
+                 heading_name_separator_regex: str = r"\s*,\s*"):
         self.resolved_templates = {self._norm_tpl(t) for t in resolved_templates}
         self.report_templates = {self._norm_tpl(t) for t in report_templates}
         self.resolved_phrases = [nfc(p) for p in resolved_phrases]
-        self.block_keywords = [nfc(k).lower() for k in block_keywords]
+        # A keyword must start a word: not preceded by a Bangla or Latin letter.
+        self.keyword_re = re.compile(
+            "|".join(rf"(?<![\u0980-\u09FFA-Za-z]){re.escape(nfc(k))}"
+                     for k in block_keywords) or r"(?!)",
+            re.IGNORECASE)
         self.temp_re = re.compile(rf"(?<![\w~-])({temp_account_regex})(?![\w-])")
+        self.heading_re = (re.compile(nfc(heading_account_regex), re.IGNORECASE)
+                           if heading_account_regex else None)
+        self.heading_sep_re = re.compile(nfc(heading_name_separator_regex))
 
     @staticmethod
     def _norm_tpl(name: str) -> str:
@@ -140,7 +157,8 @@ class NoticeboardParser:
     def analyse(self, sec: Section) -> RequestInfo:
         body = _masked(sec.body)
         times = parse_signature_timestamps(body)
-        info = RequestInfo(section=sec, report_time=min(times) if times else None)
+        # The report time is the reporter's own (first) signature.
+        info = RequestInfo(section=sec, report_time=times[0] if times else None)
 
         # Raw text on purpose: a marker left inside a comment still means the
         # request was handled, and skipping is the safe side for a bot.
@@ -151,13 +169,13 @@ class NoticeboardParser:
         report_text = _first_comment(body)
         used_report_template, names = self._extract(sec.title, report_text)
         info.accounts = [
-            Account(n, is_temp=bool(self.temp_re.fullmatch(n)), is_ip=_is_ip(n))
-            for n in names
+            Account(n, is_temp=bool(self.temp_re.fullmatch(n)), is_ip=_is_ip(n),
+                    from_heading_text=weak)
+            for n, weak in names
         ]
-        low = nfc(sec.title + "\n" + report_text).lower()
-        info.looks_like_block_request = used_report_template or any(
-            k in low for k in self.block_keywords
-        )
+        visible = nfc(_plain(sec.title) + "\n" + _plain(report_text))
+        info.looks_like_block_request = used_report_template or bool(
+            self.keyword_re.search(visible))
         return info
 
     def _resolved_reason(self, text: str) -> str:
@@ -172,12 +190,14 @@ class NoticeboardParser:
         return ""
 
     # ------------------------------------------------------------------
-    def _extract(self, title: str, report_text: str) -> Tuple[bool, List[str]]:
-        """Return (a report template was used, ordered unique account names).
+    def _extract(self, title: str, report_text: str) -> Tuple[bool, List[Tuple[str, bool]]]:
+        """Return (a report template was used, [(name, from_heading_text)]).
 
         Names inside report templates always count. Names taken from links or
         from bare temporary-account names are ignored when they belong to the
-        person who signed the report (a signature is not a report).
+        person who signed the report (a signature is not a report). Plain-text
+        names from a "বাধাদানের অনুরোধ: X ও Y" heading are returned with
+        from_heading_text=True unless they were also found another way.
         """
         found: List[Tuple[str, bool]] = []   # (name, from_template)
         used_tpl = False
@@ -198,7 +218,7 @@ class NoticeboardParser:
                 found.append((name, False))
 
         seen: Set[str] = set()
-        out = []
+        out: List[Tuple[str, bool]] = []
         for raw, from_tpl in found:
             name = normalize_username(raw)
             if not name or "{" in name or "|" in name or name in seen:
@@ -206,8 +226,24 @@ class NoticeboardParser:
             if not from_tpl and name in signers:
                 continue
             seen.add(name)
-            out.append(name)
+            out.append((name, False))
+
+        for raw in self._heading_names(title):
+            name = normalize_username(raw)
+            if name and name not in seen and name not in signers:
+                seen.add(name)
+                out.append((name, True))
         return used_tpl, out
+
+    def _heading_names(self, title: str) -> List[str]:
+        if self.heading_re is None:
+            return []
+        m = self.heading_re.match(nfc(_plain(title)))
+        if not m:
+            return []
+        parts = self.heading_sep_re.split(m.group("names"))
+        return [p.strip() for p in parts
+                if p.strip() and not re.search(r"[\[\]{}<>#|]", p)]
 
     def _user_from_link(self, target: str) -> Optional[Tuple[str, str]]:
         t = nfc(target).strip().lstrip(":").replace("_", " ")

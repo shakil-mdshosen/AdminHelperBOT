@@ -29,6 +29,7 @@ class FakeWiki:
         self.edits: List[dict] = []
         self.conflict_next_edit = False
         self.subst_output = "<!-- সংগ্রহশালাভুক্তির জন্য প্রস্তুত -->"
+        self.missing_users: set = set()      # names list=users reports missing
 
     # helpers used by tests ---------------------------------------------
     def block(self, user, by, ts, partial=False, expiry="infinity"):
@@ -118,6 +119,14 @@ class FakeAPI:
             if name in w.locked:
                 info["locked"] = True
             return {**base, "query": {"globaluserinfo": info}}
+        if p.get("list") == "users":
+            rows = []
+            for name in p["ususers"].split("|"):
+                row = {"name": name}
+                if name in w.missing_users:
+                    row["missing"] = True
+                rows.append(row)
+            return {**base, "query": {"users": rows}}
         if p.get("list") == "usercontribs":
             ts = w.contribs.get(p["ucuser"])
             rows = [{"timestamp": iso(ts)}] if ts else []

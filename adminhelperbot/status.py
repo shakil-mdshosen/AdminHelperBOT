@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 
 from .api import APIError, MediaWikiAPI
 from .parser import Account, normalize_username
@@ -59,6 +59,17 @@ class StatusChecker:
             if a.is_temp:
                 self._last_edit(result[a.name])
         return result
+
+    def missing_accounts(self, names: Iterable[str]) -> Set[str]:
+        """Names (from the list) that are not existing accounts on the wiki."""
+        names = list(dict.fromkeys(names))
+        missing: Set[str] = set()
+        for chunk in _chunks(names):
+            data = self.api.get(action="query", list="users", ususers="|".join(chunk))
+            for u in data["query"].get("users", []):
+                if u.get("missing") or u.get("invalid"):
+                    missing.add(normalize_username(u.get("name", "")))
+        return missing
 
     # ------------------------------------------------------------------
     def _local_blocks(self, users: List[str], ips: List[str],

@@ -41,7 +41,7 @@ class Config:
     archive_template: str = "সহঅ"
     reply_indent: str = ""
     automated_note: str = "<small>(স্বয়ংক্রিয় বট বার্তা)</small>"
-    stale_add_archive_template: bool = False
+    stale_add_archive_template: bool = True
     # Timezone used when writing LAST EDIT DATE TIME (bnwiki signatures: UTC).
     display_tz_offset_minutes: int = 0
     display_tz_label: str = "ইউটিসি"
@@ -53,7 +53,8 @@ class Config:
         "করা হয়েছে", "করা হয়নি", "সম্পন্ন", "সম্পন্ন হয়েছে", "হয়েছে",
         "done", "not done", "notdone", "already done", "alreadydone",
         "resolved", "সমাধান হয়েছে", "stale", "বাসি", "withdrawn", "প্রত্যাহার",
-        "সহঅ", "archive top", "atop", "closed rfc top", "archive-top",
+        "সহঅ", "সমাধান হওয়া অনুচ্ছেদ", "সমাধানকৃত", "resolved section",
+        "archive top", "atop", "closed rfc top", "archive-top",
     ])
     # Plain-text phrases that also mark a request as closed.
     resolved_phrases: List[str] = field(default_factory=lambda: [
@@ -67,8 +68,20 @@ class Config:
         "ব্যবহারকারী লিঙ্ক", "ধ্বংসপ্রবণতা", "ধ্বংসপ্রবণ", "অস্থায়ী অ্যাকাউন্ট",
         "ta", "tempuser", "temp user", "temporary account",
     ])
+    # Headings like "বাধাদানের অনুরোধ: Mr. Souraj ও Mr. Ranju Maity" name the
+    # accounts as plain text. Names found this way are only used after the
+    # wiki confirms that every one of them exists.
+    heading_account_regex: str = (
+        r"^\s*(?:বাধা\s*(?:দান|প্রদান)(?:ের)?|ব্লক(?:ের)?|block)\s*(?:করার\s*)?"
+        r"(?:অনুরোধ|request)\s*[ঃ:：\-–—]\s*(?P<names>.+?)\s*$"
+    )
+    heading_name_separator_regex: str = (
+        r"\s*(?:,|،|;|/|&|\s+ও\s+|\s+এবং\s+|\s+and\s+)\s*"
+    )
     # A section is only treated as a block request when one of these words
-    # appears in its heading or first comment, or a report template is used.
+    # starts a word in the visible text of its heading or first comment, or a
+    # report template is used. (Markup, links targets and URLs are ignored, and
+    # "লক" inside "পুলক" or "মূলক" does not count.)
     require_block_keywords: bool = True
     block_keywords: List[str] = field(default_factory=lambda: [
         "বাধা", "ব্লক", "block", "লক", "lock", "ধ্বংসপ্রবণ", "ধ্বংসাত্মক",
