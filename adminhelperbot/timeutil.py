@@ -34,50 +34,51 @@ def to_bn_digits(text: str) -> str:
     return text.translate(_TO_BN)
 
 
-# Month names as MediaWiki (bn) prints them, plus common spelling variants.
-_MONTHS_BN = {
-    1: ["জানুয়ারি", "জানুয়ারী"],
-    2: ["ফেব্রুয়ারি", "ফেব্রুয়ারী"],
-    3: ["মার্চ"],
-    4: ["এপ্রিল"],
-    5: ["মে"],
-    6: ["জুন"],
-    7: ["জুলাই"],
-    8: ["আগস্ট", "আগষ্ট"],
-    9: ["সেপ্টেম্বর"],
-    10: ["অক্টোবর"],
-    11: ["নভেম্বর"],
-    12: ["ডিসেম্বর"],
-}
 _MONTHS_EN = {
     1: ["January", "Jan"], 2: ["February", "Feb"], 3: ["March", "Mar"],
     4: ["April", "Apr"], 5: ["May"], 6: ["June", "Jun"], 7: ["July", "Jul"],
     8: ["August", "Aug"], 9: ["September", "Sep", "Sept"],
     10: ["October", "Oct"], 11: ["November", "Nov"], 12: ["December", "Dec"],
 }
-
-_MONTH_LOOKUP = {}
-for _n, _names in list(_MONTHS_BN.items()) + list(_MONTHS_EN.items()):
-    for _name in _names:
-        _MONTH_LOOKUP[nfc(_name).lower()] = _n
-
-_MONTH_ALT = "|".join(
-    sorted((re.escape(k) for k in _MONTH_LOOKUP), key=len, reverse=True)
-)
 _D = "[0-9০-৯]"
 
-# "০৫:৪৮, ২৩ সেপ্টেম্বর ২০২৬ (ইউটিসি)"  /  "05:48, 23 September 2026 (UTC)"
-SIGNATURE_TS_RE = re.compile(
-    rf"({_D}{{1,2}}):({_D}{{2}}),\s*({_D}{{1,2}})\s+({_MONTH_ALT})\s+({_D}{{4}})"
-    rf"\s*\((?:ইউটিসি|UTC|ইউ\.টি\.সি)\)",
-    re.IGNORECASE,
-)
+# Filled by configure() from texts.toml ([datetime]).
+_texts = None
+_MONTH_LOOKUP: dict = {}
+SIGNATURE_TS_RE: re.Pattern = re.compile(r"(?!)")
+
+
+def configure(texts) -> None:
+    """Build the signature regex and date format from a Texts object."""
+    global _texts, _MONTH_LOOKUP, SIGNATURE_TS_RE
+    _texts = texts
+    lookup = {}
+    for n, names in _MONTHS_EN.items():
+        for name in names:
+            lookup[name.lower()] = n
+    for n, name in enumerate(texts.get("datetime.months"), start=1):
+        lookup[nfc(name).lower()] = n
+    for name, n in texts.get("datetime.month_variants").items():
+        lookup[nfc(name).lower()] = int(n)
+    _MONTH_LOOKUP = lookup
+    months = "|".join(sorted((re.escape(k) for k in lookup), key=len, reverse=True))
+    tz = "|".join(re.escape(nfc(t)) for t in texts.get("datetime.signature_tz_labels"))
+    # "০৫:৪৮, ২৩ সেপ্টেম্বর ২০২৬ (ইউটিসি)"  /  "05:48, 23 September 2026 (UTC)"
+    SIGNATURE_TS_RE = re.compile(
+        rf"({_D}{{1,2}}):({_D}{{2}}),\s*({_D}{{1,2}})\s+({months})\s+({_D}{{4}})"
+        rf"\s*\((?:{tz})\)",
+        re.IGNORECASE,
+    )
+
+
+def signature_re() -> re.Pattern:
+    return SIGNATURE_TS_RE
 
 
 def parse_signature_timestamps(text: str) -> List[datetime]:
     """Return every signature timestamp found in *text* (in order)."""
     out = []
-    for m in SIGNATURE_TS_RE.finditer(nfc(text)):
+    for m in signature_re().finditer(nfc(text)):
         dt = _match_to_dt(m)
         if dt is not None:
             out.append(dt)
@@ -103,25 +104,21 @@ def parse_api_ts(value: str) -> datetime:
     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
-def format_bn_datetime(dt: datetime, tz_offset_minutes: int = 0,
-                       tz_label: str = "ইউটিসি") -> str:
-    """'২৩ সেপ্টেম্বর ২০২৬, ০৫:৪৮ (ইউটিসি)' in the requested timezone."""
+def format_bn_datetime(dt: datetime, tz_offset_minutes: int = 0) -> str:
+    """'২৩ সেপ্টেম্বর ২০২৬, ০৫:৪৮ (ইউটিসি)' using [datetime] from texts.toml."""
     local = dt.astimezone(UTC) + timedelta(minutes=tz_offset_minutes)
-    month = _MONTHS_BN[local.month][0]
-    text = f"{local.day} {month} {local.year}, {local.hour:02d}:{local.minute:02d}"
-    return f"{to_bn_digits(text)} ({tz_label})"
+    text = _texts.render(
+        "datetime.format", day=local.day,
+        month=_texts.get("datetime.months")[local.month - 1],
+        year=local.year, hour=f"{local.hour:02d}", minute=f"{local.minute:02d}",
+        tz="\0TZ\0")
+    # Only the numbers become Bangla digits, not the timezone label.
+    return to_bn_digits(text).replace("\0TZ\0", _texts.get("datetime.tz_label"))
 
 
-def format_bn_duration(delta: timedelta) -> str:
-    """Human-readable Bangla duration, e.g. '৩ দিন ২ ঘণ্টা ৫ মিনিট'."""
-    total = int(delta.total_seconds() // 60)
-    days, rem = divmod(total, 1440)
-    hours, minutes = divmod(rem, 60)
-    parts = []
-    if days:
-        parts.append(f"{days} দিন")
-    if hours:
-        parts.append(f"{hours} ঘণ্টা")
-    if minutes or not parts:
-        parts.append(f"{minutes} মিনিট")
-    return to_bn_digits(" ".join(parts))
+def _configure_default() -> None:
+    from .texts import default_texts
+    configure(default_texts())
+
+
+_configure_default()

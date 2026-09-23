@@ -19,7 +19,8 @@ S = timedelta(seconds=1)
 def req(*accounts, resolved=False, blocky=True):
     sec = Section(1, 2, "t", 0, 0, "== t ==\n")
     accs = [Account(n, is_temp=n.startswith("~")) for n in accounts]
-    return RequestInfo(sec, T0, accs, resolved, "", blocky)
+    return RequestInfo(sec, T0, accs, archived_by="{{সহঅ}}" if resolved else "",
+                       looks_like_block_request=blocky)
 
 
 def st(name, *actions, last_edit=None, checked=True):

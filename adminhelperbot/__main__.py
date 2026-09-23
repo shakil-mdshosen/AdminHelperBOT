@@ -8,12 +8,13 @@ import sys
 
 from .bot import AdminHelperBot
 from .config import Config
+from .texts import default_texts
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="adminhelperbot",
-        description="বাংলা উইকিপিডিয়ার প্রশাসকদের আলোচনাসভার সহায়ক বট",
+        description=default_texts().get("cli.description"),
     )
     ap.add_argument("-c", "--config", help="JSON config file")
     ap.add_argument("--once", action="store_true",

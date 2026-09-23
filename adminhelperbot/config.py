@@ -1,11 +1,18 @@
-"""Bot configuration. Every value can be overridden from a JSON file."""
+"""Bot configuration. Every value can be overridden from a JSON file.
+
+All Bangla text (page messages, edit summaries, template names, keywords …)
+lives in texts.toml, not here; see texts.py.
+"""
 
 from __future__ import annotations
 
 import json
 import os
 from dataclasses import dataclass, field, fields
-from typing import List, Optional
+from typing import Optional
+
+from . import timeutil
+from .texts import Texts, default_texts
 
 
 @dataclass
@@ -13,7 +20,6 @@ class Config:
     # --- Wiki -------------------------------------------------------------
     api_url: str = "https://bn.wikipedia.org/w/api.php"
     meta_api_url: str = "https://meta.wikimedia.org/w/api.php"
-    page_title: str = "উইকিপিডিয়া:প্রশাসকদের আলোচনাসভা"
     user_agent: str = (
         "AdminHelperBot/1.0 (https://github.com/shakil-mdshosen/AdminHelperBOT) "
         "python-requests"
@@ -28,6 +34,9 @@ class Config:
     # --- Timing (minutes / hours) -------------------------------------------
     check_interval_minutes: int = 5
     done_grace_minutes: int = 10
+    # A request already marked {{করা হয়েছে}}/{{করা হয়নি}} but not archived gets
+    # {{subst:সহঅ}} this long after its last comment.
+    archive_grace_minutes: int = 10
     stale_no_action_hours: int = 72
     stale_inactivity_hours: int = 60
     # A block/lock made this long *before* the report was posted still counts
@@ -36,67 +45,25 @@ class Config:
     count_partial_blocks: bool = True
     max_edits_per_run: int = 25
 
-    # --- Output text --------------------------------------------------------
-    done_template: str = "করা হয়েছে"
-    archive_template: str = "সহঅ"
-    reply_indent: str = ""
-    automated_note: str = "<small>(স্বয়ংক্রিয় বট বার্তা)</small>"
+    # --- Behaviour ----------------------------------------------------------
+    archive_decided_requests: bool = True
     stale_add_archive_template: bool = True
-    # Timezone used when writing LAST EDIT DATE TIME (bnwiki signatures: UTC).
+    reply_indent: str = ""
+    # Timezone offset used when writing times (label is in texts.toml).
     display_tz_offset_minutes: int = 0
-    display_tz_label: str = "ইউটিসি"
-    summary_suffix: str = "(স্বয়ংক্রিয় সম্পাদনা)"
-
-    # --- Detection ----------------------------------------------------------
-    # Templates that already close a request (redirects are added at runtime).
-    resolved_templates: List[str] = field(default_factory=lambda: [
-        "করা হয়েছে", "করা হয়নি", "সম্পন্ন", "সম্পন্ন হয়েছে", "হয়েছে",
-        "done", "not done", "notdone", "already done", "alreadydone",
-        "resolved", "সমাধান হয়েছে", "stale", "বাসি", "withdrawn", "প্রত্যাহার",
-        "সহঅ", "সমাধান হওয়া অনুচ্ছেদ", "সমাধানকৃত", "resolved section",
-        "archive top", "atop", "closed rfc top", "archive-top",
-    ])
-    # Plain-text phrases that also mark a request as closed.
-    resolved_phrases: List[str] = field(default_factory=lambda: [
-        "বাধা দেওয়ার প্রয়োজন নেই",
-    ])
-    # Templates whose first positional parameter is a reported account.
-    report_templates: List[str] = field(default_factory=lambda: [
-        "userlinks", "user", "user5", "user-multi", "vandal", "ipvandal",
-        "userlinks-min", "user-uaa", "checkuser", "checkip", "iplinks",
-        "ip", "ব্যবহারকারী", "ব্যবহারকারী সংযোগ", "ব্যবহারকারী লিংক",
-        "ব্যবহারকারী লিঙ্ক", "ধ্বংসপ্রবণতা", "ধ্বংসপ্রবণ", "অস্থায়ী অ্যাকাউন্ট",
-        "ta", "tempuser", "temp user", "temporary account",
-    ])
-    # Headings like "বাধাদানের অনুরোধ: Mr. Souraj ও Mr. Ranju Maity" name the
-    # accounts as plain text. Names found this way are only used after the
-    # wiki confirms that every one of them exists.
-    heading_account_regex: str = (
-        r"^\s*(?:বাধা\s*(?:দান|প্রদান)(?:ের)?|ব্লক(?:ের)?|block)\s*(?:করার\s*)?"
-        r"(?:অনুরোধ|request)\s*[ঃ:：\-–—]\s*(?P<names>.+?)\s*$"
-    )
-    heading_name_separator_regex: str = (
-        r"\s*(?:,|،|;|/|&|\s+ও\s+|\s+এবং\s+|\s+and\s+)\s*"
-    )
-    # A section is only treated as a block request when one of these words
-    # starts a word in the visible text of its heading or first comment, or a
-    # report template is used. (Markup, links targets and URLs are ignored, and
-    # "লক" inside "পুলক" or "মূলক" does not count.)
     require_block_keywords: bool = True
-    block_keywords: List[str] = field(default_factory=lambda: [
-        "বাধা", "ব্লক", "block", "লক", "lock", "ধ্বংসপ্রবণ", "ধ্বংসাত্মক",
-        "ভ্যান্ডাল", "ভাণ্ডাল", "vandal", "স্প্যাম", "spam", "সকপাপেট",
-        "sock", "অস্থায়ী অ্যাকাউন্ট", "অবরুদ্ধ", "নিষেধাজ্ঞা", "lta",
-    ])
     # MediaWiki temporary account name pattern on Wikimedia wikis: ~2025-12345-67
     temp_account_regex: str = r"~\d{4}-\d+(?:-\d+)*"
 
-    # --- Safety -------------------------------------------------------------
-    # If set, the bot only edits while this page contains one of run_page_ok.
+    # --- Files & safety -----------------------------------------------------
+    texts_file: Optional[str] = None      # None = adminhelperbot/texts.toml
+    # If set, the bot only edits while this page contains a word from
+    # [wiki] run_page_ok in texts.toml.
     run_page: Optional[str] = None
-    run_page_ok: List[str] = field(default_factory=lambda: ["চালু", "true", "on"])
     state_file: str = "state.json"
     dry_run: bool = False
+
+    texts: Texts = field(default_factory=default_texts, repr=False)
 
     @classmethod
     def load(cls, path: Optional[str] = None) -> "Config":
@@ -104,7 +71,7 @@ class Config:
         if path:
             with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
-            known = {f.name for f in fields(cls)}
+            known = {f.name for f in fields(cls)} - {"texts"}
             unknown = set(data) - known
             if unknown:
                 raise ValueError(f"Unknown config keys: {sorted(unknown)}")
@@ -112,4 +79,7 @@ class Config:
                 setattr(cfg, key, value)
         cfg.username = os.environ.get("ADMINHELPERBOT_USERNAME", cfg.username)
         cfg.password = os.environ.get("ADMINHELPERBOT_PASSWORD", cfg.password)
+        if cfg.texts_file:
+            cfg.texts = Texts.load(cfg.texts_file)
+        timeutil.configure(cfg.texts)
         return cfg

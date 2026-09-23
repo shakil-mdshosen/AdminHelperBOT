@@ -1,4 +1,8 @@
-"""Wikitext parsing for the administrators' noticeboard."""
+"""Wikitext parsing for the administrators' noticeboard.
+
+Every Bangla word the parser looks for (namespaces, template names, keywords)
+comes from texts.toml.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +14,8 @@ from typing import Iterable, List, Optional, Set, Tuple
 
 import mwparserfromhell
 
-from .timeutil import SIGNATURE_TS_RE, nfc, parse_signature_timestamps
+from .texts import Texts
+from .timeutil import nfc, parse_signature_timestamps, signature_re
 
 HEADING_RE = re.compile(r"^(={1,6})[ \t]*(.+?)[ \t]*\1[ \t]*$", re.MULTILINE)
 # Regions in which headings/templates are not real: comments, nowiki, pre, etc.
@@ -19,13 +24,6 @@ _MASK_RE = re.compile(
     r"|<(nowiki|pre|syntaxhighlight|source|code|math)\b[^>]*>.*?(?:</\1\s*>|\Z)",
     re.DOTALL | re.IGNORECASE,
 )
-
-USER_NS = ["ব্যবহারকারী", "ব্যবহারকারীর", "user", "ব্যবহারকারিণী", "ব্যবহারকারিনী"]
-USER_TALK_NS = ["ব্যবহারকারী আলাপ", "user talk", "ব্যবহারকারীর আলাপ"]
-CONTRIB_PREFIX = [
-    "বিশেষ:অবদান", "বিশেষ:ব্যবহারকারীর অবদান", "বিশেষ:contributions",
-    "special:contributions", "special:contribs", "বিশেষ:অবদানসমূহ",
-]
 
 
 @dataclass
@@ -57,9 +55,30 @@ class RequestInfo:
     section: Section
     report_time: Optional[datetime]
     accounts: List[Account] = field(default_factory=list)
-    is_resolved: bool = False
-    resolved_reason: str = ""
+    # Archive marker ({{সমাধান হওয়া অনুচ্ছেদ}}, {{সহঅ}} …): fully closed.
+    archived_by: str = ""
+    # Decision marker ({{করা হয়েছে}}, {{করা হয়নি}}, {{done}} …) without archive.
+    decided_by: str = ""
+    # A signature follows the (last) decision marker, i.e. its time is known.
+    decision_signed: bool = False
+    last_activity: Optional[datetime] = None      # newest signature
     looks_like_block_request: bool = False
+
+    @property
+    def is_archived(self) -> bool:
+        return bool(self.archived_by)
+
+    @property
+    def is_decided(self) -> bool:
+        return bool(self.decided_by)
+
+    @property
+    def is_resolved(self) -> bool:
+        return self.is_archived or self.is_decided
+
+    @property
+    def resolved_reason(self) -> str:
+        return self.archived_by or self.decided_by
 
     @property
     def key(self) -> str:
@@ -101,12 +120,6 @@ def _is_ip(name: str) -> bool:
         return False
 
 
-def _tpl_name(tpl) -> str:
-    name = nfc(str(tpl.name)).strip()
-    name = re.sub(r"^(?:template|টেমপ্লেট|টেম্পলেট)\s*:\s*", "", name, flags=re.I)
-    return re.sub(r"[\s_]+", " ", name).lower()
-
-
 def _plain(wikitext: str) -> str:
     """Visible text only: no markup, link targets, templates or URLs."""
     text = mwparserfromhell.parse(wikitext).strip_code(normalize=True, collapse=True)
@@ -115,40 +128,53 @@ def _plain(wikitext: str) -> str:
 
 def _first_comment(body: str) -> str:
     """Text of the report itself: everything up to the first signature."""
-    m = SIGNATURE_TS_RE.search(nfc(body))
+    m = signature_re().search(nfc(body))
     return nfc(body) if m is None else nfc(body)[:m.end()]
 
 
+def _norm(name: str) -> str:
+    return re.sub(r"[\s_]+", " ", nfc(name)).strip().lower()
+
+
 class NoticeboardParser:
-    def __init__(self, resolved_templates: Iterable[str],
-                 report_templates: Iterable[str],
-                 resolved_phrases: Iterable[str],
-                 block_keywords: Iterable[str],
-                 temp_account_regex: str,
-                 heading_account_regex: str = "",
-                 heading_name_separator_regex: str = r"\s*,\s*"):
-        self.resolved_templates = {self._norm_tpl(t) for t in resolved_templates}
-        self.report_templates = {self._norm_tpl(t) for t in report_templates}
-        self.resolved_phrases = [nfc(p) for p in resolved_phrases]
+    def __init__(self, texts: Texts, temp_account_regex: str):
+        g = texts.get
+        self.decision_templates = {_norm(t) for t in g("detection.decision_templates")}
+        self.decision_phrases = [nfc(p) for p in g("detection.decision_phrases")]
+        self.archive_templates = {_norm(t) for t in g("detection.archive_templates")}
+        self.archive_phrases: List[str] = []
+        self.report_templates = {_norm(t) for t in g("detection.report_templates")}
+        self.user_ns = {_norm(n) for n in g("wiki.user_namespaces")}
+        self.user_talk_ns = {_norm(n) for n in g("wiki.user_talk_namespaces")}
+        self.contrib_prefixes = [_norm(p) for p in g("wiki.contributions_prefixes")]
+        self.template_ns = [_norm(n) for n in g("wiki.template_namespaces")]
         # A keyword must start a word: not preceded by a Bangla or Latin letter.
         self.keyword_re = re.compile(
-            "|".join(rf"(?<![\u0980-\u09FFA-Za-z]){re.escape(nfc(k))}"
-                     for k in block_keywords) or r"(?!)",
+            "|".join(rf"(?<![ঀ-৿A-Za-z]){re.escape(nfc(k))}"
+                     for k in g("detection.block_keywords")) or r"(?!)",
             re.IGNORECASE)
         self.temp_re = re.compile(rf"(?<![\w~-])({temp_account_regex})(?![\w-])")
-        self.heading_re = (re.compile(nfc(heading_account_regex), re.IGNORECASE)
-                           if heading_account_regex else None)
-        self.heading_sep_re = re.compile(nfc(heading_name_separator_regex))
+        self.heading_re = re.compile(nfc(g("detection.heading_account_regex")),
+                                     re.IGNORECASE)
+        self.heading_sep_re = re.compile(nfc(g("detection.heading_name_separator_regex")))
 
-    @staticmethod
-    def _norm_tpl(name: str) -> str:
-        return re.sub(r"[\s_]+", " ", nfc(name)).strip().lower()
+    def add_decision_templates(self, names: Iterable[str]) -> None:
+        self.decision_templates |= {_norm(n) for n in names}
 
-    def add_resolved_templates(self, names: Iterable[str]) -> None:
-        self.resolved_templates |= {self._norm_tpl(n) for n in names}
+    def add_archive_templates(self, names: Iterable[str]) -> None:
+        self.archive_templates |= {_norm(n) for n in names}
 
-    def add_resolved_phrases(self, phrases: Iterable[str]) -> None:
-        self.resolved_phrases += [nfc(p) for p in phrases if p.strip()]
+    def add_archive_phrases(self, phrases: Iterable[str]) -> None:
+        self.archive_phrases += [nfc(p) for p in phrases if p.strip()]
+
+    def tpl_name(self, tpl) -> str:
+        """Normalised template name without namespace or subst: prefix."""
+        name = _norm(str(tpl.name))
+        name = re.sub(r"^(?:safesubst|subst)\s*:\s*", "", name)
+        for ns in self.template_ns:
+            if name.startswith(ns + ":"):
+                name = name[len(ns) + 1:].strip()
+        return name
 
     # ------------------------------------------------------------------
     def parse(self, text: str) -> List[RequestInfo]:
@@ -158,13 +184,19 @@ class NoticeboardParser:
         body = _masked(sec.body)
         times = parse_signature_timestamps(body)
         # The report time is the reporter's own (first) signature.
-        info = RequestInfo(section=sec, report_time=times[0] if times else None)
+        info = RequestInfo(section=sec, report_time=times[0] if times else None,
+                           last_activity=max(times) if times else None)
 
-        # Raw text on purpose: a marker left inside a comment still means the
-        # request was handled, and skipping is the safe side for a bot.
-        reason = self._resolved_reason(sec.text)
-        if reason:
-            info.is_resolved, info.resolved_reason = True, reason
+        # Archive markers: raw text on purpose — even a marker inside a comment
+        # means the request was handled, and skipping is the safe side.
+        info.archived_by = self._find(sec.text, self.archive_templates,
+                                      self.archive_phrases)[0]
+        # Decision markers: only visible text (a commented-out {{done}} is no
+        # decision).
+        info.decided_by, pos = self._find(body, self.decision_templates,
+                                          self.decision_phrases)
+        if info.decided_by:
+            info.decision_signed = bool(signature_re().search(nfc(body[pos:])))
 
         report_text = _first_comment(body)
         used_report_template, names = self._extract(sec.title, report_text)
@@ -178,16 +210,21 @@ class NoticeboardParser:
             self.keyword_re.search(visible))
         return info
 
-    def _resolved_reason(self, text: str) -> str:
-        code = mwparserfromhell.parse(text)
-        for tpl in code.filter_templates(recursive=True):
-            if _tpl_name(tpl) in self.resolved_templates:
-                return "{{" + str(tpl.name).strip() + "}}"
+    def _find(self, text: str, templates: Set[str],
+              phrases: List[str]) -> Tuple[str, int]:
+        """(marker as written, offset of the last marker) or ("", -1)."""
+        found, pos = "", -1
+        for tpl in mwparserfromhell.parse(text).filter_templates(recursive=True):
+            if self.tpl_name(tpl) in templates:
+                at = text.rfind(str(tpl))
+                if at >= pos:
+                    found, pos = "{{" + str(tpl.name).strip() + "}}", at
         norm = nfc(text)
-        for phrase in self.resolved_phrases:
-            if phrase in norm:
-                return phrase
-        return ""
+        for phrase in phrases:
+            at = norm.rfind(phrase)
+            if at > pos:
+                found, pos = phrase, at
+        return found, pos
 
     # ------------------------------------------------------------------
     def _extract(self, title: str, report_text: str) -> Tuple[bool, List[Tuple[str, bool]]]:
@@ -206,7 +243,7 @@ class NoticeboardParser:
         for part in (title, report_text):
             code = mwparserfromhell.parse(part)
             for tpl in code.filter_templates(recursive=True):
-                if _tpl_name(tpl) in self.report_templates and tpl.has("1"):
+                if self.tpl_name(tpl) in self.report_templates and tpl.has("1"):
                     used_tpl = True
                     found.append((str(tpl.get("1").value).strip(), True))
             for link in code.filter_wikilinks(recursive=True):
@@ -236,8 +273,6 @@ class NoticeboardParser:
         return used_tpl, out
 
     def _heading_names(self, title: str) -> List[str]:
-        if self.heading_re is None:
-            return []
         m = self.heading_re.match(nfc(_plain(title)))
         if not m:
             return []
@@ -248,19 +283,18 @@ class NoticeboardParser:
     def _user_from_link(self, target: str) -> Optional[Tuple[str, str]]:
         t = nfc(target).strip().lstrip(":").replace("_", " ")
         t = t.split("#")[0]
-        low = t.lower()
-        for prefix in CONTRIB_PREFIX:
-            prefix = nfc(prefix)
+        low = _norm(t)
+        for prefix in self.contrib_prefixes:
             if low.startswith(prefix + "/"):
                 return "contrib", t[len(prefix) + 1:].split("/")[0]
         if ":" not in t:
             return None
         ns, rest = t.split(":", 1)
-        ns = re.sub(r"\s+", " ", ns).strip().lower()
+        ns = _norm(ns)
         rest = rest.split("/")[0]
-        if ns in USER_NS:
+        if ns in self.user_ns:
             return "user", rest
-        if ns in USER_TALK_NS:
+        if ns in self.user_talk_ns:
             return "talk", rest
         return None
 
@@ -269,7 +303,7 @@ class NoticeboardParser:
         is the last one on a line before a signature timestamp."""
         signers: Set[str] = set()
         for line in text.split("\n"):
-            for m in SIGNATURE_TS_RE.finditer(line):
+            for m in signature_re().finditer(line):
                 before = line[:m.start()]
                 last_pos, last_name = -1, None
                 for link in mwparserfromhell.parse(before).filter_wikilinks():

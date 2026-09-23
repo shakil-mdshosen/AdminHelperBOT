@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/shakil-mdshosen/AdminHelperBOT/actions/workflows/tests.yml/badge.svg)](https://github.com/shakil-mdshosen/AdminHelperBOT/actions/workflows/tests.yml)
 
-বাংলা উইকিপিডিয়ার **[উইকিপিডিয়া:প্রশাসকদের আলোচনাসভা](https://bn.wikipedia.org/wiki/উইকিপিডিয়া:প্রশাসকদের_আলোচনাসভা)** পাতার জন্য একটি সহায়ক বট। বাধাদানের যেসব অনুরোধে প্রশাসক বা স্টুয়ার্ড ইতিমধ্যে পদক্ষেপ নিয়েছেন কিন্তু অনুরোধটি চিহ্নিত করা হয়নি, সেগুলো বট সম্পন্ন হিসেবে চিহ্নিত করে। অস্থায়ী অ্যাকাউন্টের বিরুদ্ধে যেসব অনুরোধ বাসি হয়ে গেছে, সেগুলোও বন্ধ করে। বট শুধু এই একটি পাতাতেই সম্পাদনা করে।
+বাংলা উইকিপিডিয়ার **[উইকিপিডিয়া:প্রশাসকদের আলোচনাসভা](https://bn.wikipedia.org/wiki/উইকিপিডিয়া:প্রশাসকদের_আলোচনাসভা)** পাতার জন্য একটি সহায়ক বট। বাধাদানের যেসব অনুরোধে প্রশাসক বা স্টুয়ার্ড ইতিমধ্যে পদক্ষেপ নিয়েছেন কিন্তু অনুরোধটি চিহ্নিত করা হয়নি, সেগুলো বট সম্পন্ন হিসেবে চিহ্নিত করে। অস্থায়ী অ্যাকাউন্টের বিরুদ্ধে যেসব অনুরোধ বাসি হয়ে গেছে, সেগুলোও বন্ধ করে। আর প্রশাসক `{{করা হয়েছে}}` / `{{করা হয়নি}}` দিয়েও সংগ্রহশালার চিহ্ন দিতে ভুলে গেলে শুধু `{{subst:সহঅ}}` যোগ করে। বট শুধু এই একটি পাতাতেই সম্পাদনা করে।
 
 *A helper bot for the Bangla Wikipedia administrators' noticeboard. [English summary below](#english).*
 
@@ -10,6 +10,7 @@
 |---|---|
 | **[docs/how-it-works.md](docs/how-it-works.md)** | বট কীভাবে কাজ করে: প্রতিটি ধাপ, নিয়ম, সময়ের হিসাব, আসল পাতায় আচরণ |
 | **[docs/deployment.md](docs/deployment.md)** | বট অ্যাকাউন্ট, বট পাসওয়ার্ড, Toolforge, পর্যবেক্ষণ, সমস্যা সমাধান |
+| **[docs/texts.md](docs/texts.md)** | বটের বাংলা লেখা বদলানো (`texts.toml`) |
 
 ## বট কী করে
 
@@ -35,6 +36,16 @@ Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয
 {{subst:সহঅ}}
 ```
 
+### ৩. সিদ্ধান্ত হয়েছে কিন্তু সংগ্রহশালার চিহ্ন দেওয়া হয়নি
+
+প্রশাসক `{{করা হয়েছে}}`, `{{করা হয়নি}}` বা `{{done}}` দিয়েছেন কিন্তু `{{subst:সহঅ}}` দিতে ভুলে গেছেন। তখন অনুচ্ছেদের **শেষ মন্তব্যের ১০ মিনিট পর** বট শুধু যোগ করে:
+
+```
+{{subst:সহঅ}}
+```
+
+(এটি যেকোনো অনুরোধে প্রযোজ্য, শুধু বাধাদানের অনুরোধে নয়। সিদ্ধান্তের টেমপ্লেট স্বাক্ষর ছাড়া দেওয়া হলে বট প্রথম দেখার ১০ মিনিট পর যোগ করে।)
+
 ### প্রতিটি সম্পাদনার সারাংশ (উদাহরণ)
 
 > /\* বাধাদানের অনুরোধ: Swarup Das Official \*/ বট: অনুরোধটি সম্পন্ন হিসেবে চিহ্নিত ও সংগ্রহশালাভুক্তির জন্য প্রস্তুত করা হলো — Swarup Das Official-কে প্রশাসক Ferdous স্থানীয়ভাবে বাধা দিয়েছেন (২৩ সেপ্টেম্বর ২০২৬, ০৫:৫০ (ইউটিসি))। পদক্ষেপ নেওয়ার ১০ মিনিট পরেও কেউ চিহ্নিত না করায় স্বয়ংক্রিয়ভাবে {{করা হয়েছে}} ও {{সহঅ}} যোগ করা হয়েছে। (স্বয়ংক্রিয় সম্পাদনা)
@@ -45,6 +56,7 @@ Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয
 |---|---|
 | সম্পন্ন | `max(রিপোর্টের সময়, শেষ পদক্ষেপের সময়) + ১০ মিনিট` |
 | বাসি | `max(রিপোর্টের সময় + ৭২ ঘণ্টা, শেষ সম্পাদনা + ৬০ ঘণ্টা)` |
+| শুধু সংগ্রহশালার চিহ্ন | `শেষ মন্তব্যের সময় + ১০ মিনিট` |
 
 * সব হিসাব **উইকি সার্ভারের ঘড়ি** ধরে, UTC-তে।
 * বট প্রতি ৫ মিনিটে দেখে, তবে কোনো অনুরোধের সময় তার আগেই পূর্ণ হলে বট ঠিক সেই মুহূর্তে (+৫ সেকেন্ড) জেগে কাজ করে। তাই ১০ মিনিট মানে ১০ মিনিটই।
@@ -53,7 +65,8 @@ Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয
 
 ## বট কখন কিছু করে না
 
-* অনুচ্ছেদে আগে থেকেই `{{সমাধান হওয়া অনুচ্ছেদ}}`, `{{করা হয়েছে}}`, `{{করা হয়নি}}`, `{{done}}` ইত্যাদি বা এদের পুনর্নির্দেশ থাকলে।
+* অনুচ্ছেদে আগে থেকেই সংগ্রহশালার চিহ্ন (`{{সমাধান হওয়া অনুচ্ছেদ}}`, `{{সহঅ}}` বা এদের পুনর্নির্দেশ) থাকলে।
+* প্রশাসক `{{Doing}}` দিয়েছেন (কাজ চলছে)।
 * অনুরোধটি বাধাদানের না হলে (যেমন টেমপ্লেট তৈরি, পাতা পুনরুদ্ধার, অপসারণ প্রস্তাবনা নিয়ে অভিযোগ)।
 * রিপোর্ট করা অ্যাকাউন্টের কিছুতে পদক্ষেপ হয়েছে, কিছুতে হয়নি।
 * বাধাটি রিপোর্টের অনেক আগের হলে (৬০ মিনিটের বেশি)।
@@ -78,7 +91,11 @@ venv/bin/python -m adminhelperbot -c config.json                    # নির�
 
 বিস্তারিত (বট ফ্ল্যাগ, Toolforge, সমস্যা সমাধান): **[docs/deployment.md](docs/deployment.md)**।
 
-## কনফিগারেশন
+## বাংলা লেখা বদলানো
+
+বটের **সব বাংলা লেখা একটি ফাইলে**: [`adminhelperbot/texts.toml`](adminhelperbot/texts.toml)। এর মধ্যে আছে পাতায় লেখা লাইন, সম্পাদনা সারাংশ, মাসের নাম, টেমপ্লেটের নাম ও মূলশব্দ। কোনো লেখা বদলাতে শুধু এই ফাইলটি সম্পাদনা করে বট আবার চালু করুন। `$actors`-এর মতো শব্দগুলো বট নিজে বসায়। ফাইলে ভুল থাকলে বট চালু হওয়ার সময়ই কোথায় কী ভুল তা বলে দেয়। বিস্তারিত: **[docs/texts.md](docs/texts.md)**।
+
+## কনফিগারেশন (প্রযুক্তিগত সেটিং)
 
 সব মান [`adminhelperbot/config.py`](adminhelperbot/config.py)-এ আছে; JSON ফাইল (`-c config.json`) দিয়ে যেকোনোটি বদলানো যায়। অজানা কী দিলে বট চালু হয় না, তাই বানান ভুল ধরা পড়ে।
 
@@ -88,40 +105,47 @@ venv/bin/python -m adminhelperbot -c config.json                    # নির�
 | `done_grace_minutes` | 10 | পদক্ষেপের পর কত মিনিট অপেক্ষা |
 | `stale_no_action_hours` | 72 | রিপোর্টের পর কত ঘণ্টা পদক্ষেপহীন থাকলে বাসি |
 | `stale_inactivity_hours` | 60 | অস্থায়ী অ্যাকাউন্ট কত ঘণ্টা নিষ্ক্রিয় থাকলে বাসি |
+| `archive_grace_minutes` | 10 | সিদ্ধান্ত-হওয়া অনুরোধে শেষ মন্তব্যের কত মিনিট পর `{{subst:সহঅ}}` |
+| `archive_decided_requests` | true | সিদ্ধান্ত-হওয়া অনুরোধে `{{subst:সহঅ}}` যোগ করা হবে কি না |
 | `stale_add_archive_template` | true | বাসি অনুরোধেও `{{subst:সহঅ}}` যোগ হবে |
 | `action_before_report_tolerance_minutes` | 60 | রিপোর্টের কত মিনিট আগের বাধাও উত্তর হিসেবে গণ্য |
 | `count_partial_blocks` | true | আংশিক বাধাও পদক্ষেপ হিসেবে গণ্য |
 | `reply_indent` | `""` | উত্তরের শুরুতে `:` চাইলে |
-| `automated_note` | `<small>(স্বয়ংক্রিয় বট বার্তা)</small>` | পাতায় স্বয়ংক্রিয় কার্যক্রমের উল্লেখ |
-| `display_tz_offset_minutes` / `display_tz_label` | 0 / ইউটিসি | শেষ সম্পাদনার সময় কোন সময়-অঞ্চলে লেখা হবে (বাংলাদেশ সময়: 360 / বাংলাদেশ সময়) |
+| `display_tz_offset_minutes` | 0 | সময় কোন সময়-অঞ্চলে লেখা হবে (বাংলাদেশ সময়: 360; লেবেলটি `texts.toml`-এ) |
+| `texts_file` | null | অন্য একটি বাংলা লেখার ফাইল ব্যবহার করতে |
 | `assert_mode` | bot | বট ফ্ল্যাগের আগে `user` |
 | `run_page` | null | জরুরি বন্ধের পাতা |
-| `resolved_templates`, `block_keywords`, `report_templates`, `heading_account_regex` | — | শনাক্তকরণের তালিকা ও নিয়ম ([বিস্তারিত](docs/how-it-works.md)) |
+| `temp_account_regex` | `~\d{4}-\d+(?:-\d+)*` | অস্থায়ী অ্যাকাউন্টের নামের ধরন |
+
+টেমপ্লেট ও মূলশব্দের তালিকা বাংলা বলে `texts.toml`-এর `[detection]` অংশে আছে।
 
 ## পরীক্ষা
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q        # ৬৭টি পরীক্ষা
+python -m pytest -q        # ৮৪টি পরীক্ষা (Python ৩.১১ বা নতুন)
 ```
 
 * `tests/test_real_page.py`: আসল আলোচনাসভার প্রতিটি অনুচ্ছেদে বাস্তব পরিস্থিতি (বাধা, লক, বৈশ্বিক বাধা, বাসি, একই নামের অনুচ্ছেদ, শিরোনামে নাম, অ-বাধাদান অনুরোধ, একই কাজ দুবার না করা)।
 * `tests/test_logic.py`: প্রতিটি সময়-সীমা সেকেন্ড পর্যন্ত।
 * `tests/test_bot.py`: সম্পূর্ণ রান, সম্পাদনা-দ্বন্দ্ব, dry-run, জরুরি বন্ধ, সঠিক মুহূর্তে জাগা।
 * `tests/test_parser.py`: স্বাক্ষর, তারিখ, মূলশব্দ, নাম শনাক্তকরণ।
+* `tests/test_texts.py`: `texts.toml` বদলালে বটের লেখা বদলায়, ভুল ধরা পড়ে, কোডে কোনো বাংলা লেখা লুকিয়ে নেই।
 
 ## কোড কাঠামো
 
 ```
 adminhelperbot/
+  texts.toml    সব বাংলা লেখা
+  texts.py      texts.toml পড়া ও যাচাই
   api.py        MediaWiki API ক্লায়েন্ট (লগইন, maxlag, সার্ভারের ঘড়ি)
   parser.py     অনুচ্ছেদ, রিপোর্ট করা অ্যাকাউন্ট, বন্ধের চিহ্ন
   status.py     বাধা / বৈশ্বিক বাধা / লক / শেষ সম্পাদনা
-  logic.py      সিদ্ধান্ত: DONE / STALE / WAIT / SKIP
+  logic.py      সিদ্ধান্ত: DONE / STALE / ARCHIVE / WAIT / SKIP
   messages.py   পাতার লেখা ও বাংলা সম্পাদনা সারাংশ
   bot.py        মূল লুপ ও নিরাপদ সম্পাদনা
   timeutil.py   বাংলা তারিখ ও সংখ্যা
-  config.py     সেটিং
+  config.py     প্রযুক্তিগত সেটিং
 ```
 
 ---
@@ -132,12 +156,15 @@ adminhelperbot/
 
 * **Done rule.** All accounts reported in a section must be locally blocked, globally locked or globally blocked. If nobody closes the section within 10 minutes of the last action, the bot appends `ACTOR কর্তৃক {{করা হয়েছে}} … --~~~~` plus `{{subst:সহঅ}}`. ACTOR is the admin or steward who acted, read from the block list, the global block list or the meta global lock log.
 * **Stale rule.** Temporary accounts with no action at all get the "no block needed" message plus `{{subst:সহঅ}}`. This happens once 72 h have passed since the report and 60 h since the account's last edit.
+* **Archive-only rule.** A section already closed with a decision template (`{{করা হয়েছে}}`, `{{করা হয়নি}}`, `{{done}}` …) but no archive marker gets only `{{subst:সহঅ}}`, 10 minutes after its last comment.
+
+**Bangla text.** Every Bangla string (page messages, summaries, month names, template names, keywords) lives in `adminhelperbot/texts.toml`, with `$placeholders`. It is validated at startup, and a test guarantees that no Bangla text is left in the code. See [docs/texts.md](docs/texts.md).
 
 **Timing.** Server time is used everywhere, in UTC. The scheduler wakes exactly when a request becomes due.
 
 **Safety.** The bot skips:
 
-* already closed sections (`{{সমাধান হওয়া অনুচ্ছেদ}}`, `{{করা হয়েছে}}`, redirects learned at startup);
+* already archived sections (`{{সমাধান হওয়া অনুচ্ছেদ}}`, `{{সহঅ}}`, redirects learned at startup);
 * non-block requests (keyword match on visible text at word starts);
 * partially handled requests and blocks made long before the report.
 

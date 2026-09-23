@@ -1,4 +1,8 @@
-"""Bangla text written to the page and edit summaries."""
+"""Builds what the bot writes on the page and in edit summaries.
+
+No Bangla text lives here: every sentence comes from texts.toml ([page] and
+[summary]); this module only fills in the $placeholders.
+"""
 
 from __future__ import annotations
 
@@ -8,110 +12,128 @@ import mwparserfromhell
 
 from .config import Config
 from .logic import Decision
+from .parser import RequestInfo
 from .status import GLOBAL_BLOCK, GLOBAL_LOCK, LOCAL_BLOCK, ActionEvent
 from .timeutil import format_bn_datetime, to_bn_digits
 
 SUMMARY_LIMIT = 490   # MediaWiki cuts summaries at 500 characters
 
 
-def join_bn(items: List[str]) -> str:
-    """'ক', 'ক ও খ', 'ক, খ ও গ'."""
+def join_names(items: List[str], cfg: Config) -> str:
+    """'ক', 'ক ও খ', 'ক, খ ও গ' (separators from texts.toml)."""
     if len(items) <= 1:
         return "".join(items)
-    return ", ".join(items[:-1]) + " ও " + items[-1]
+    t = cfg.texts
+    return (t.get("page.list_separator").join(items[:-1])
+            + t.get("page.list_last_separator") + items[-1])
 
 
-def _actor(ev: ActionEvent) -> str:
+def _actor(ev: ActionEvent, cfg: Config) -> str:
     if ev.actor:
         return ev.actor
-    return "প্রশাসক" if ev.kind == LOCAL_BLOCK else "স্টুয়ার্ড"
+    return cfg.texts.get("page.unknown_admin" if ev.kind == LOCAL_BLOCK
+                         else "page.unknown_steward")
 
 
-def actors_of(decision: Decision) -> List[str]:
+def actors_of(decision: Decision, cfg: Config) -> List[str]:
     seen, out = set(), []
     for ev in decision.chosen.values():
-        name = _actor(ev)
+        name = _actor(ev, cfg)
         if name not in seen:
             seen.add(name)
             out.append(name)
     return out
 
 
+def _time(dt, cfg: Config) -> str:
+    return format_bn_datetime(dt, cfg.display_tz_offset_minutes)
+
+
+def _lines(cfg: Config, *lines: str) -> str:
+    return "\n".join(cfg.reply_indent + line if i == 0 else line
+                     for i, line in enumerate(lines))
+
+
+# ------------------------------------------------------------------ page text
 def done_text(decision: Decision, cfg: Config) -> str:
-    note = f" {cfg.automated_note}" if cfg.automated_note else ""
-    return (f"{cfg.reply_indent}{join_bn(actors_of(decision))} কর্তৃক "
-            f"{{{{{cfg.done_template}}}}}{note} --~~~~\n"
-            f"{{{{subst:{cfg.archive_template}}}}}")
+    t = cfg.texts
+    return _lines(cfg,
+                  t.render("page.done_line", actors=join_names(actors_of(decision, cfg), cfg)),
+                  t.get("page.archive_line"))
 
 
 def stale_text(decision: Decision, cfg: Config) -> str:
-    note = f" {cfg.automated_note}" if cfg.automated_note else ""
-    subject = ("অস্থায়ী অ্যাকাউন্টগুলো" if len(decision.stale_accounts) > 1
-               else "অস্থায়ী অ্যাকাউন্ট")
+    t = cfg.texts
+    subject = t.get("page.stale_subject_many" if len(decision.stale_accounts) > 1
+                    else "page.stale_subject_one")
     if decision.last_edit:
-        when = format_bn_datetime(decision.last_edit, cfg.display_tz_offset_minutes,
-                                  cfg.display_tz_label)
-        line = (f"বাধা দেওয়ার প্রয়োজন নেই, {subject} থেকে সর্বশেষ সম্পাদনা "
-                f"{when} টায় হয়েছে।")
+        line = t.render("page.stale_line", subject=subject,
+                        last_edit=_time(decision.last_edit, cfg))
     else:
-        line = f"বাধা দেওয়ার প্রয়োজন নেই, {subject} থেকে কোনো সম্পাদনা হয়নি।"
-    text = f"{cfg.reply_indent}{line}{note} --~~~~"
+        line = t.render("page.stale_line_no_edits", subject=subject)
     if cfg.stale_add_archive_template:
-        text += f"\n{{{{subst:{cfg.archive_template}}}}}"
-    return text
+        return _lines(cfg, line, t.get("page.archive_line"))
+    return _lines(cfg, line)
 
 
+def archive_only_text(cfg: Config) -> str:
+    return cfg.texts.get("page.archive_only_line")
+
+
+# ------------------------------------------------------------------ summaries
 def _section_link(title: str) -> str:
     plain = mwparserfromhell.parse(title).strip_code().strip()
     return f"/* {plain} */ " if plain else ""
 
 
+def _summary(cfg: Config, key: str, title: str, details: str, **values) -> str:
+    """Render summary *key*; if too long, shorten only the $details part."""
+    t = cfg.texts
+    link = _section_link(title)
+    full = link + t.render(key, details=details, **values)
+    if len(full) <= SUMMARY_LIMIT:
+        return full
+    room = SUMMARY_LIMIT - len(link + t.render(key, details="", **values)) - 1
+    return link + t.render(key, details=details[:max(room, 0)] + "…", **values)
+
+
 def _describe(name: str, ev: ActionEvent, cfg: Config) -> str:
-    who = _actor(ev)
-    when = ""
-    if ev.timestamp:
-        when = " (" + format_bn_datetime(ev.timestamp, cfg.display_tz_offset_minutes,
-                                         cfg.display_tz_label) + ")"
+    t = cfg.texts
+    when = t.render("summary.when", time=_time(ev.timestamp, cfg)) if ev.timestamp else ""
     if ev.kind == GLOBAL_LOCK:
-        return f"{name} অ্যাকাউন্টটি স্টুয়ার্ড {who} বৈশ্বিকভাবে লক করেছেন{when}"
-    if ev.kind == GLOBAL_BLOCK:
-        return f"{name}-কে স্টুয়ার্ড {who} বৈশ্বিকভাবে বাধা দিয়েছেন{when}"
-    kind = "আংশিক বাধা" if ev.partial else "বাধা"
-    return f"{name}-কে প্রশাসক {who} স্থানীয়ভাবে {kind} দিয়েছেন{when}"
-
-
-def _fit(summary: str, core: str, details: str, tail: str) -> str:
-    if len(summary) <= SUMMARY_LIMIT:
-        return summary
-    room = SUMMARY_LIMIT - len(core) - len(tail) - 1
-    return core + (details[:max(room, 0)] + "…" if room > 0 else "") + tail
+        key = "summary.action_global_lock"
+    elif ev.kind == GLOBAL_BLOCK:
+        key = "summary.action_global_block"
+    elif ev.partial:
+        key = "summary.action_local_partial_block"
+    else:
+        key = "summary.action_local_block"
+    return t.render(key, account=name, actor=_actor(ev, cfg), when=when)
 
 
 def done_summary(title: str, decision: Decision, cfg: Config) -> str:
-    details = "; ".join(_describe(n, ev, cfg) for n, ev in decision.chosen.items())
-    grace = to_bn_digits(str(cfg.done_grace_minutes))
-    core = (f"{_section_link(title)}বট: অনুরোধটি সম্পন্ন হিসেবে চিহ্নিত ও "
-            f"সংগ্রহশালাভুক্তির জন্য প্রস্তুত করা হলো — ")
-    tail = (f"। পদক্ষেপ নেওয়ার {grace} মিনিট পরেও কেউ চিহ্নিত না করায় "
-            f"স্বয়ংক্রিয়ভাবে {{{{{cfg.done_template}}}}} ও "
-            f"{{{{{cfg.archive_template}}}}} যোগ করা হয়েছে। {cfg.summary_suffix}")
-    return _fit(core + details + tail, core, details, tail)
+    details = cfg.texts.get("summary.details_separator").join(
+        _describe(n, ev, cfg) for n, ev in decision.chosen.items())
+    return _summary(cfg, "summary.done", title, details,
+                    grace=to_bn_digits(str(cfg.done_grace_minutes)))
 
 
 def stale_summary(title: str, decision: Decision, cfg: Config) -> str:
-    names = join_bn(decision.stale_accounts)
-    no_action = to_bn_digits(str(cfg.stale_no_action_hours))
-    inactive = to_bn_digits(str(cfg.stale_inactivity_hours))
-    core = f"{_section_link(title)}বট: অনুরোধটি অপ্রয়োজনীয় হিসেবে চিহ্নিত — "
+    t = cfg.texts
     if decision.last_edit:
-        last = "সর্বশেষ সম্পাদনা: " + format_bn_datetime(
-            decision.last_edit, cfg.display_tz_offset_minutes, cfg.display_tz_label)
+        info = t.render("summary.stale_last_edit_info",
+                        last_edit=_time(decision.last_edit, cfg))
     else:
-        last = "অ্যাকাউন্টটি থেকে কোনো সম্পাদনা নেই"
-    details = (f"রিপোর্ট করার {no_action} ঘণ্টার মধ্যে অস্থায়ী অ্যাকাউন্ট {names}-এর "
-               f"বিরুদ্ধে কোনো প্রশাসক বা স্টুয়ার্ড পদক্ষেপ নেননি এবং গত {inactive} "
-               f"ঘণ্টায় কোনো সম্পাদনা হয়নি ({last})")
-    archive = (f"; সংগ্রহশালাভুক্তির জন্য {{{{{cfg.archive_template}}}}} যোগ করা হয়েছে"
-               if cfg.stale_add_archive_template else "")
-    tail = f"{archive}। {cfg.summary_suffix}"
-    return _fit(core + details + tail, core, details, tail)
+        info = t.get("summary.stale_no_edit_info")
+    details = t.render(
+        "summary.stale_details",
+        no_action_hours=to_bn_digits(str(cfg.stale_no_action_hours)),
+        inactivity_hours=to_bn_digits(str(cfg.stale_inactivity_hours)),
+        accounts=join_names(decision.stale_accounts, cfg), last_edit_info=info)
+    note = t.get("summary.stale_archive_note") if cfg.stale_add_archive_template else ""
+    return _summary(cfg, "summary.stale", title, details, archive_note=note)
+
+
+def archive_only_summary(info: RequestInfo, cfg: Config) -> str:
+    return _summary(cfg, "summary.archive_only", info.section.title, info.decided_by,
+                    grace=to_bn_digits(str(cfg.archive_grace_minutes)))

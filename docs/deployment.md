@@ -77,7 +77,11 @@ tail -f ~/adminhelperbot.out ~/adminhelperbot.err
 
 **কেন cron নয়?** প্রতি ৫ মিনিটের cron-এ ১০ মিনিটের অপেক্ষা আসলে ১০–১৫ মিনিট হয়ে যায়। continuous মোডে বট ঠিক `due + ৫ সেকেন্ড`-এ কাজ করে। তবুও চাইলে `--once` দিয়ে cron (`*/5 * * * *`) চালানো যায়।
 
-## ৪. হালনাগাদ
+## ৪. বাংলা লেখা বদলানো
+
+`adminhelperbot/texts.toml` সম্পাদনা করে বট আবার চালু করুন (`toolforge jobs restart adminhelperbot`)। আগে `--once --dry-run` দিয়ে দেখে নিতে পারেন। বিস্তারিত: [texts.md](texts.md)। `git pull`-এর সময় নিজের পরিবর্তন হারাতে না চাইলে ফাইলটি কপি করে (যেমন `~/my-texts.toml`) `config.json`-এ `"texts_file": "/data/project/<tool>/my-texts.toml"` দিন।
+
+## ৫. হালনাগাদ
 
 ```bash
 cd ~/AdminHelperBOT && git pull
@@ -85,7 +89,7 @@ venv/bin/pip install -r requirements.txt
 toolforge jobs restart adminhelperbot
 ```
 
-## ৫. পর্যবেক্ষণ ও সমস্যা সমাধান
+## ৬. পর্যবেক্ষণ ও সমস্যা সমাধান
 
 | লক্ষণ | কারণ / সমাধান |
 |---|---|
@@ -95,11 +99,12 @@ toolforge jobs restart adminhelperbot
 | `Edit conflict, will retry` | স্বাভাবিক; কেউ একই সময়ে সম্পাদনা করছিলেন |
 | `maxlag hit` | সার্ভার ব্যস্ত; বট নিজেই অপেক্ষা করে |
 | কোনো অনুরোধে বট কিছু করছে না | লগে সেই অনুচ্ছেদের `-> skip (…)` কারণটি দেখুন |
+| `Problems in texts.toml: …` | `texts.toml`-এ ভুল; বার্তায় কোন লেখায় কী ভুল তা বলা আছে ([texts.md](texts.md)) |
 | `heading names … not all existing accounts; ignored` | শিরোনামের কোনো নামের অ্যাকাউন্ট নেই, তাই শিরোনাম থেকে নাম নেওয়া হয়নি |
 
 লগে প্রতিটি অনুচ্ছেদের সিদ্ধান্ত ও কারণ থাকে, তাই "কেন করল / কেন করল না" সবসময় বোঝা যায়। বিস্তারিত লগের জন্য `-v` দিন।
 
-## ৬. পরীক্ষা চালানো
+## ৭. পরীক্ষা চালানো
 
 ```bash
 pip install -r requirements-dev.txt
@@ -109,7 +114,7 @@ python -m pytest -q
 
 GitHub-এ প্রতিটি push-এ `.github/workflows/tests.yml` স্বয়ংক্রিয়ভাবে পরীক্ষা চালায়।
 
-## ৭. নিরাপত্তা নোট
+## ৮. নিরাপত্তা নোট
 
 * পাসওয়ার্ড কখনো কোডে বা `config.json`-এ রাখবেন না; environment variable ব্যবহার করুন। `config.json` ও `state.json` `.gitignore`-এ আছে।
 * বট শুধু `page_title`-এ দেওয়া একটি পাতাতেই সম্পাদনা করে (`nocreate=1`)।

@@ -2,13 +2,14 @@
   "assert_mode": "bot",
   "check_interval_minutes": 5,
   "done_grace_minutes": 10,
+  "archive_grace_minutes": 10,
   "stale_no_action_hours": 72,
   "stale_inactivity_hours": 60,
-  "reply_indent": "",
-  "automated_note": "<small>(স্বয়ংক্রিয় বট বার্তা)</small>",
+  "archive_decided_requests": true,
   "stale_add_archive_template": true,
+  "reply_indent": "",
   "display_tz_offset_minutes": 0,
-  "display_tz_label": "ইউটিসি",
+  "texts_file": null,
   "run_page": "ব্যবহারকারী:AdminHelperBot/চালু",
   "state_file": "state.json"
 }

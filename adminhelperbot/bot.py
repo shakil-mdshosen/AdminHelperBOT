@@ -16,10 +16,10 @@ import mwparserfromhell
 from . import messages
 from .api import APIError, MediaWikiAPI
 from .config import Config
-from .logic import DONE, STALE, WAIT, evaluate
+from .logic import ARCHIVE, DONE, STALE, WAIT, evaluate
 from .parser import NoticeboardParser, Section
 from .status import AccountStatus, StatusChecker
-from .timeutil import SIGNATURE_TS_RE
+from .timeutil import signature_re
 
 log = logging.getLogger(__name__)
 
@@ -50,11 +50,9 @@ class AdminHelperBot:
         self.api = api or MediaWikiAPI(cfg.api_url, cfg.user_agent, cfg.maxlag)
         self.meta = meta_api or MediaWikiAPI(cfg.meta_api_url, cfg.user_agent, cfg.maxlag)
         self.checker = StatusChecker(self.api, self.meta)
-        self.parser = NoticeboardParser(cfg.resolved_templates, cfg.report_templates,
-                                        cfg.resolved_phrases, cfg.block_keywords,
-                                        cfg.temp_account_regex,
-                                        cfg.heading_account_regex,
-                                        cfg.heading_name_separator_regex)
+        self.texts = cfg.texts
+        self.page_title = self.texts.get("wiki.page_title")
+        self.parser = NoticeboardParser(self.texts, cfg.temp_account_regex)
         self.state = self._load_state()
         self._dry_handled: Set[str] = set()
         self._missing_cache: Dict[str, bool] = {}
@@ -70,55 +68,57 @@ class AdminHelperBot:
 
     def _calibrate(self) -> None:
         """Learn template redirects and what {{subst:সহঅ}} expands to."""
-        names = [self.cfg.done_template, self.cfg.archive_template]
+        done_tpl = self.texts.get("wiki.done_template")
+        archive_tpl = self.texts.get("wiki.archive_template")
+        for name, add in ((done_tpl, self.parser.add_decision_templates),
+                          (archive_tpl, self.parser.add_archive_templates)):
+            try:
+                aliases = self._template_aliases(name)
+                add(aliases)
+                log.info("Aliases of {{%s}}: %s", name, ", ".join(aliases))
+            except APIError as exc:
+                log.warning("Could not load redirects of {{%s}}: %s", name, exc)
         try:
-            data = self.api.get(action="query", redirects="1", prop="redirects",
-                                rdlimit="max",
-                                titles="|".join(f"Template:{n}" for n in names))
-            extra = []
-            for page in data["query"].get("pages", []):
-                extra.append(page["title"])
-                extra += [r["title"] for r in page.get("redirects", [])]
-            extra = [re.sub(r"^[^:]+:", "", t) for t in extra]
-            self.parser.add_resolved_templates(extra)
-            log.info("Resolved-template aliases: %s", ", ".join(extra))
-        except APIError as exc:
-            log.warning("Could not load template redirects: %s", exc)
-        try:
-            data = self.api.post(action="parse", title=self.cfg.page_title,
-                                 text=f"{{{{subst:{self.cfg.archive_template}}}}}",
+            data = self.api.post(action="parse", title=self.page_title,
+                                 text=f"{{{{subst:{archive_tpl}}}}}",
                                  contentmodel="wikitext", pst="1", onlypst="1")
             expanded = data["parse"]["text"]
             if isinstance(expanded, dict):
                 expanded = expanded.get("*", "")
             self._learn_archive_marker(expanded)
         except (APIError, KeyError) as exc:
-            log.warning("Could not expand {{subst:%s}}: %s", self.cfg.archive_template, exc)
+            log.warning("Could not expand {{subst:%s}}: %s", archive_tpl, exc)
 
-    # Templates that can appear inside any comment; never treat them as markers.
-    _GENERIC_TEMPLATES = {"small", "u", "ping", "re", "reply to", "replyto", "উত্তর",
-                          "বট", "bot", "tl", "nowrap", "font", "color"}
+    def _template_aliases(self, name: str):
+        data = self.api.get(action="query", redirects="1", prop="redirects",
+                            rdlimit="max", titles=f"Template:{name}")
+        titles = []
+        for page in data["query"].get("pages", []):
+            titles.append(page["title"])
+            titles += [r["title"] for r in page.get("redirects", [])]
+        return [re.sub(r"^[^:]+:", "", t) for t in titles]
 
     def _learn_archive_marker(self, expanded: str) -> None:
+        generic = {g.lower() for g in self.texts.get("detection.generic_templates")}
         code = mwparserfromhell.parse(expanded)
         tpls = [str(t.name).strip() for t in code.filter_templates(recursive=True)]
         tpls = [t for t in tpls if not t.lower().startswith("subst:")
-                and t.lower() not in self._GENERIC_TEMPLATES]
+                and t.lower() not in generic]
         if tpls:
-            self.parser.add_resolved_templates(tpls)
+            self.parser.add_archive_templates(tpls)
         # When the template leaves only text/a comment, remember its longest
         # plain fragment (no links, templates or digits) as a text marker.
-        skeleton = SIGNATURE_TS_RE.sub(" ", expanded)
+        skeleton = signature_re().sub(" ", expanded)
         skeleton = re.sub(r"\[\[.*?\]\]|\{\{.*?\}\}|<!--|-->|<[^>]*>", "\n",
                           skeleton, flags=re.S)
         pieces = [p.strip(" \t-–—:;,.()") for p in re.split(r"[0-9০-৯\n|]+", skeleton)]
         pieces = [p for p in pieces if len(p) >= 12 and not re.search(r"[\[\]{}=:]", p)]
         if pieces:
             marker = max(pieces, key=len)
-            self.parser.add_resolved_phrases([marker])
+            self.parser.add_archive_phrases([marker])
             log.info("Archive marker phrase: %r", marker)
-        log.info("{{subst:%s}} expands to: %r (marker templates: %s)",
-                 self.cfg.archive_template, expanded, tpls)
+        log.info("{{subst:%s}} expands to: %r (archive templates learned: %s)",
+                 self.texts.get("wiki.archive_template"), expanded, tpls)
 
     # ------------------------------------------------------------------ state
     def _load_state(self) -> Dict[str, dict]:
@@ -142,11 +142,11 @@ class AdminHelperBot:
 
     # ------------------------------------------------------------------ wiki
     def fetch_page(self) -> PageRevision:
-        data = self.api.get(action="query", prop="revisions", titles=self.cfg.page_title,
+        data = self.api.get(action="query", prop="revisions", titles=self.page_title,
                             rvprop="ids|timestamp|content", rvslots="main")
         page = data["query"]["pages"][0]
         if page.get("missing"):
-            raise APIError("missingtitle", self.cfg.page_title)
+            raise APIError("missingtitle", self.page_title)
         rev = page["revisions"][0]
         return PageRevision(rev["slots"]["main"]["content"], rev["revid"],
                             rev["timestamp"], data["curtimestamp"])
@@ -160,7 +160,7 @@ class AdminHelperBot:
         if page.get("missing"):
             return False
         content = page["revisions"][0]["slots"]["main"]["content"].strip().lower()
-        return any(ok.lower() in content for ok in self.cfg.run_page_ok)
+        return any(ok.lower() in content for ok in self.texts.get("wiki.run_page_ok"))
 
     def save(self, rev: PageRevision, new_text: str, summary: str) -> bool:
         if self.cfg.dry_run:
@@ -168,7 +168,7 @@ class AdminHelperBot:
             return True
         try:
             result = self.api.post(
-                action="edit", title=self.cfg.page_title, text=new_text,
+                action="edit", title=self.page_title, text=new_text,
                 summary=summary, bot="1", nocreate="1", watchlist="nochange",
                 baserevid=str(rev.revid), basetimestamp=rev.timestamp,
                 starttimestamp=rev.start_timestamp,
@@ -199,11 +199,12 @@ class AdminHelperBot:
         while True:
             rev = self.fetch_page()
             now = self.api.now()
-            requests_ = [r for r in self.parser.parse(rev.text)
-                         if not r.is_resolved and r.accounts and r.report_time]
-            self._confirm_heading_accounts(requests_)
-            requests_ = [r for r in requests_ if r.accounts]
-            missing = [a for r in requests_ for a in r.accounts if a.name not in statuses]
+            requests_ = [r for r in self.parser.parse(rev.text) if not r.is_archived
+                         and (r.is_decided or (r.accounts and r.report_time))]
+            open_ = [r for r in requests_ if not r.is_decided]
+            self._confirm_heading_accounts(open_)
+            requests_ = [r for r in requests_ if r.is_decided or r.accounts]
+            missing = [a for r in open_ for a in r.accounts if a.name not in statuses]
             if missing:
                 statuses.update(self.checker.fetch(missing))
                 now = self.api.now()
@@ -216,8 +217,7 @@ class AdminHelperBot:
                 first_seen = self.state.get(info.key, {}).get("first_seen")
                 decision = evaluate(info, statuses, now, self.cfg,
                                     datetime.fromisoformat(first_seen) if first_seen else None)
-                if decision.kind == WAIT and decision.pending == DONE and any(
-                        ev.timestamp is None for ev in decision.chosen.values()):
+                if decision.needs_first_seen:
                     self._first_seen(info.key, now)
                 log.info("[%s] %s -> %s (%s)%s", info.section.title,
                          ", ".join(a.name for a in info.accounts), decision.kind,
@@ -225,7 +225,7 @@ class AdminHelperBot:
                          f", due {decision.due:%Y-%m-%d %H:%M:%S}Z" if decision.due else "")
                 if decision.kind == WAIT and decision.due:
                     next_due = decision.due if next_due is None else min(next_due, decision.due)
-                if decision.kind in (DONE, STALE) and action is None \
+                if decision.kind in (DONE, STALE, ARCHIVE) and action is None \
                         and info.key not in self._dry_handled:
                     action = (info, decision)
             self.state = {k: v for k, v in self.state.items() if k in live_keys}
@@ -234,7 +234,10 @@ class AdminHelperBot:
             if action is None or edits >= self.cfg.max_edits_per_run:
                 return next_due
             info, decision = action
-            if decision.kind == DONE:
+            if decision.kind == ARCHIVE:
+                reply = messages.archive_only_text(self.cfg)
+                summary = messages.archive_only_summary(info, self.cfg)
+            elif decision.kind == DONE:
                 reply = messages.done_text(decision, self.cfg)
                 summary = messages.done_summary(info.section.title, decision, self.cfg)
             else:

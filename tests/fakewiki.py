@@ -30,6 +30,8 @@ class FakeWiki:
         self.conflict_next_edit = False
         self.subst_output = "<!-- সংগ্রহশালাভুক্তির জন্য প্রস্তুত -->"
         self.missing_users: set = set()      # names list=users reports missing
+        self.template_redirects = {"করা হয়েছে": ["Done", "হয়েছে", "কহ"],
+                                   "সহঅ": ["সমাধান হওয়া"]}
 
     # helpers used by tests ---------------------------------------------
     def block(self, user, by, ts, partial=False, expiry="infinity"):
@@ -101,11 +103,11 @@ class FakeAPI:
                 "revid": w.revid, "timestamp": iso(w.rev_ts),
                 "slots": {"main": {"content": w.text}}}]}]}}
         if p.get("prop") == "redirects":
+            name = p["titles"].split(":", 1)[1]
+            redirects = w.template_redirects.get(name, [])
             return {**base, "query": {"pages": [
-                {"title": "টেমপ্লেট:করা হয়েছে",
-                 "redirects": [{"title": "টেমপ্লেট:Done"}, {"title": "টেমপ্লেট:হয়েছে"}]},
-                {"title": "টেমপ্লেট:সহঅ", "redirects": []},
-            ]}}
+                {"title": "টেমপ্লেট:" + name,
+                 "redirects": [{"title": "টেমপ্লেট:" + r} for r in redirects]}]}}
         if p.get("list") == "blocks":
             wanted = set(p["bkusers"].split("|")) if "bkusers" in p else {p["bkip"]}
             return {**base, "query": {"blocks": [b for b in w.blocks if b["user"] in wanted]}}

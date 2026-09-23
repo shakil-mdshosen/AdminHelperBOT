@@ -11,9 +11,7 @@ SAMPLE = (Path(__file__).parent / "sample_noticeboard.txt").read_text(encoding="
 
 def make_parser():
     c = Config()
-    return NoticeboardParser(c.resolved_templates, c.report_templates,
-                             c.resolved_phrases, c.block_keywords, c.temp_account_regex,
-                             c.heading_account_regex, c.heading_name_separator_regex)
+    return NoticeboardParser(c.texts, c.temp_account_regex)
 
 
 def by_title(infos):
@@ -36,8 +34,7 @@ def test_english_and_variant_spellings():
 def test_format_bn_datetime():
     dt = datetime(2026, 9, 23, 5, 8, tzinfo=UTC)
     assert format_bn_datetime(dt) == "২৩ সেপ্টেম্বর ২০২৬, ০৫:০৮ (ইউটিসি)"
-    assert format_bn_datetime(dt, 360, "বাংলাদেশ সময়") == \
-        "২৩ সেপ্টেম্বর ২০২৬, ১১:০৮ (বাংলাদেশ সময়)"
+    assert format_bn_datetime(dt, 360) == "২৩ সেপ্টেম্বর ২০২৬, ১১:০৮ (ইউটিসি)"
 
 
 def test_headings_in_comments_are_ignored():
@@ -104,7 +101,7 @@ def test_later_replies_do_not_add_accounts():
 
 def test_marker_in_comment_counts_as_resolved():
     p = make_parser()
-    p.add_resolved_phrases(["সংগ্রহশালাভুক্তির জন্য প্রস্তুত"])
+    p.add_archive_phrases(["সংগ্রহশালাভুক্তির জন্য প্রস্তুত"])
     text = ("== বাধা ==\n{{vandal|X}} [[User:R|R]] 01:00, 1 January 2026 (UTC)\n"
             "<!-- সংগ্রহশালাভুক্তির জন্য প্রস্তুত 1767229200 -->\n")
     assert p.parse(text)[0].is_resolved

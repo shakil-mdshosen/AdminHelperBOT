@@ -24,18 +24,20 @@ REAL_SUBST = ("<!--4fd29918-->{{সমাধান হওয়া অনুচ�
               "AdminHelperBot]] ০৬:০০, ২৩ সেপ্টেম্বর ২০২৬ (ইউটিসি)|t=20260923060000}}"
               "<!--e4807be0-->")
 TEMP = "~2026-35944-61"
+NEPHRO = "[[Nephrozoa]] পাতাটি পুনর্নির্দেশ হিসেবে তৈরি করুন"
+# The real page with Nephrozoa (the only "decided but not archived" request)
+# already archived, so the other scenarios can be looked at one by one.
+BASE = REAL.rstrip("\n") + "\n" + REAL_SUBST + "\n"
 
 
 def parser():
     c = Config()
-    return NoticeboardParser(c.resolved_templates, c.report_templates, c.resolved_phrases,
-                             c.block_keywords, c.temp_account_regex,
-                             c.heading_account_regex, c.heading_name_separator_regex)
+    return NoticeboardParser(c.texts, c.temp_account_regex)
 
 
 @pytest.fixture
 def wiki():
-    w = FakeWiki(PAGE, REAL, NOW)
+    w = FakeWiki(PAGE, BASE, NOW)
     w.subst_output = REAL_SUBST
     w.contribs[TEMP] = NOW - timedelta(hours=2)          # active unless a test says so
     return w
@@ -61,27 +63,29 @@ def changed_sections(before, after):
 
 # ------------------------------------------------------------ understanding
 def test_every_real_section_is_understood():
-    got = [(i.section.title, i.is_resolved, i.looks_like_block_request,
+    def state(i):
+        return "archived" if i.is_archived else "decided" if i.is_decided else ""
+    got = [(i.section.title, state(i), i.looks_like_block_request,
             [a.name for a in i.accounts]) for i in parser().parse(REAL)]
     assert got == [
-        ("টেমপ্লেট:Infobox bodybuilder তৈরি", False, False, []),
-        ("টেমপ্লেট:Infobox handball biography", False, False, []),
-        ("বাধাদানের অনুরোধঃ ~2026-32288-48", True, True, ["~2026-32288-48"]),
-        ("পুনরায় ফিরিয়ে দেওয়ার জন্য বিনীত ও জোরালো আবেদন", False, False, []),
-        ("বাধাদানের অনুরোধ: Swarup Das Official", False, True, ["Swarup Das Official"]),
-        ("ব্যবস্থা নিন", False, False, []),
-        ("বাধাদানের অনুরোধ [[বিশেষ:অবদান/~2026-35944-61|~2026-35944-61]]", False, True, [TEMP]),
-        ("বাধাদানের অনুরোধ", False, True, ["Muriwala Debu"]),
-        ("বাধাদানের অনুরোধ", False, True,
+        ("টেমপ্লেট:Infobox bodybuilder তৈরি", "", False, []),
+        ("টেমপ্লেট:Infobox handball biography", "", False, []),
+        ("বাধাদানের অনুরোধঃ ~2026-32288-48", "archived", True, ["~2026-32288-48"]),
+        ("পুনরায় ফিরিয়ে দেওয়ার জন্য বিনীত ও জোরালো আবেদন", "", False, []),
+        ("বাধাদানের অনুরোধ: Swarup Das Official", "", True, ["Swarup Das Official"]),
+        ("ব্যবস্থা নিন", "", False, []),
+        ("বাধাদানের অনুরোধ [[বিশেষ:অবদান/~2026-35944-61|~2026-35944-61]]", "", True, [TEMP]),
+        ("বাধাদানের অনুরোধ", "", True, ["Muriwala Debu"]),
+        ("বাধাদানের অনুরোধ", "", True,
          ["Զեմւկո Բանգլադեշվչոտրցևղձճծընէե (ՀաՒարոդիմ)"]),
-        ("বাধাদানের অনুরোধ: Integrity2020", False, True, ["Integrity2020"]),
-        ("বাধাদানের অনুরোধ: Mr. Souraj ও Mr. Ranju Maity", False, True,
+        ("বাধাদানের অনুরোধ: Integrity2020", "", True, ["Integrity2020"]),
+        ("বাধাদানের অনুরোধ: Mr. Souraj ও Mr. Ranju Maity", "", True,
          ["Mr. Souraj", "Mr. Ranju Maity"]),
         ("বীর মুক্তিযোদ্ধা কমান্ডার মোঃ আরজু মিয়া খসড়া নিবন্ধ এবং নির্ভরযোগ্য সূত্র প্রসঙ্গে",
-         False, False, []),
+         "", False, []),
         ("নিবন্ধ অপসারণ প্রস্তাবনায় অপব্যবহার সম্পর্কে প্রশাসকদের পর্যালোচনার অনুরোধ",
-         False, False, ["Sàádî"]),
-        ("[[Nephrozoa]] পাতাটি পুনর্নির্দেশ হিসেবে তৈরি করুন", True, False, []),
+         "", False, ["Sàádî"]),
+        (NEPHRO, "decided", False, []),
     ]
 
 
@@ -96,7 +100,7 @@ def test_report_times_are_the_reporters_signatures():
 
 def test_calibration_learns_real_resolved_template(wiki, tmp_path):
     bot = make_bot(wiki, tmp_path)
-    assert "সমাধান হওয়া অনুচ্ছেদ" in bot.parser.resolved_templates
+    assert "সমাধান হওয়া অনুচ্ছেদ" in bot.parser.archive_templates
 
 
 # ------------------------------------------------------------ behaviour
@@ -110,7 +114,7 @@ def test_local_block_marked_with_admin_name(wiki, tmp_path):
     wiki.block("Swarup Das Official", "Ferdous", act)
     make_bot(wiki, tmp_path).run_once()
     assert len(wiki.edits) == 1
-    [(old, new)] = changed_sections(REAL, wiki.text)
+    [(old, new)] = changed_sections(BASE, wiki.text)
     assert old.title == "বাধাদানের অনুরোধ: Swarup Das Official"
     assert new.text == old.text.rstrip() + (
         "\nFerdous কর্তৃক {{করা হয়েছে}} <small>(স্বয়ংক্রিয় বট বার্তা)</small> --~~~~"
@@ -133,7 +137,7 @@ def test_heading_names_with_lock_and_block(wiki, tmp_path):
     wiki.lock("Mr. Souraj", "Steward X", NOW - timedelta(hours=1))
     wiki.block("Mr. Ranju Maity", "Yahya", NOW - timedelta(minutes=30))
     make_bot(wiki, tmp_path).run_once()
-    [(old, new)] = changed_sections(REAL, wiki.text)
+    [(old, new)] = changed_sections(BASE, wiki.text)
     assert old.title == "বাধাদানের অনুরোধ: Mr. Souraj ও Mr. Ranju Maity"
     assert "\nSteward X ও Yahya কর্তৃক {{করা হয়েছে}}" in new.text
     s = wiki.edits[0]["summary"]
@@ -157,7 +161,7 @@ def test_heading_names_not_existing_are_ignored(wiki, tmp_path):
 def test_duplicate_titles_edit_the_right_section(wiki, tmp_path):
     wiki.lock("Muriwala Debu", "Steward Y", NOW - timedelta(hours=3))
     make_bot(wiki, tmp_path).run_once()
-    [(old, new)] = changed_sections(REAL, wiki.text)
+    [(old, new)] = changed_sections(BASE, wiki.text)
     assert "Muriwala Debu" in old.text                  # not the Armenian one
     assert "Steward Y কর্তৃক {{করা হয়েছে}}" in new.text
 
@@ -166,7 +170,7 @@ def test_stale_real_temp_account(wiki, tmp_path):
     wiki.contribs[TEMP] = datetime(2026, 6, 21, 11, 50, tzinfo=UTC)
     make_bot(wiki, tmp_path).run_once()
     assert len(wiki.edits) == 1
-    [(old, new)] = changed_sections(REAL, wiki.text)
+    [(old, new)] = changed_sections(BASE, wiki.text)
     assert old.title.startswith("বাধাদানের অনুরোধ [[বিশেষ:অবদান/~2026-35944-61")
     assert new.text == old.text.rstrip() + (
         "\nবাধা দেওয়ার প্রয়োজন নেই, অস্থায়ী অ্যাকাউন্ট থেকে সর্বশেষ সম্পাদনা "
@@ -213,10 +217,26 @@ def test_everything_at_once_then_idempotent(wiki, tmp_path):
     bot = make_bot(wiki, tmp_path)
     bot.run_once()
     assert len(wiki.edits) == 5
-    assert len(changed_sections(REAL, wiki.text)) == 5
+    assert len(changed_sections(BASE, wiki.text)) == 5
     assert "Steward X কর্তৃক {{করা হয়েছে}}" in wiki.text     # one name, not "X ও X"
     # Simulate {{subst:সহঅ}} being expanded by MediaWiki on save.
     wiki.text = wiki.text.replace("{{subst:সহঅ}}", REAL_SUBST)
     wiki.clock += timedelta(minutes=5)
     bot.run_once()
     assert len(wiki.edits) == 5
+
+
+def test_real_nephrozoa_done_but_not_archived(tmp_path):
+    """On the real page {{done}} was given (signed 11:30, 18 Aug) but nobody added
+    {{subst:সহঅ}}: the bot adds only that, and nothing else anywhere."""
+    w = FakeWiki(PAGE, REAL, NOW)
+    w.subst_output = REAL_SUBST
+    w.contribs[TEMP] = NOW - timedelta(hours=2)
+    make_bot(w, tmp_path).run_once()
+    assert len(w.edits) == 1
+    [(old, new)] = changed_sections(REAL, w.text)
+    assert old.title == NEPHRO
+    assert new.text == old.text.rstrip() + "\n{{subst:সহঅ}}\n"
+    assert w.edits[0]["summary"].startswith(
+        "/* Nephrozoa পাতাটি পুনর্নির্দেশ হিসেবে তৈরি করুন */ বট: অনুরোধটি আগেই {{done}} "
+        "দিয়ে চিহ্নিত করা হয়েছে")

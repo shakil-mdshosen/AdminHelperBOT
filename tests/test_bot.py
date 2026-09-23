@@ -133,6 +133,7 @@ def test_edit_conflict_is_retried_on_fresh_text(wiki, tmp_path, monkeypatch):
 
 
 def test_admin_marks_done_during_grace_period(wiki, tmp_path):
+    """Admin writes {{Done}} but forgets {{subst:সহঅ}}: bot adds only that."""
     act = NOW - timedelta(minutes=5)
     wiki.block("Vandal Account", "Admin A", act)
     bot = make_bot(wiki, tmp_path)
@@ -141,7 +142,10 @@ def test_admin_marks_done_during_grace_period(wiki, tmp_path):
         ":দেখছি।", ":{{Done}} দেখছি।")         # an admin closes it using a redirect
     wiki.clock = act + timedelta(minutes=15)
     bot.run_once()
-    assert wiki.edits == []
+    assert len(wiki.edits) == 1
+    sec = section_text(wiki.text, "ব্যবহারকারী বাধাদানের অনুরোধ")
+    assert sec.endswith("(ইউটিসি)\n{{subst:সহঅ}}\n\n")
+    assert "কর্তৃক {{করা হয়েছে}}" not in sec
 
 
 def test_dry_run_never_edits(wiki, tmp_path):
@@ -168,8 +172,10 @@ def test_several_requests_in_one_run(wiki, tmp_path):
 
 def test_learned_archive_marker(wiki, tmp_path):
     bot = make_bot(wiki, tmp_path)
-    assert "সংগ্রহশালাভুক্তির জন্য প্রস্তুত" in bot.parser.resolved_phrases
-    assert "done" in bot.parser.resolved_templates
+    assert "সংগ্রহশালাভুক্তির জন্য প্রস্তুত" in bot.parser.archive_phrases
+    assert "done" in bot.parser.decision_templates          # redirect of করা হয়েছে
+    assert "কহ" in bot.parser.decision_templates
+    assert "সমাধান হওয়া" in bot.parser.archive_templates    # redirect of সহঅ
 
 
 def test_insert_reply_last_section_without_newline():
@@ -204,3 +210,74 @@ def test_loop_wakes_right_when_due(wiki, tmp_path, monkeypatch):
     assert wiki.rev_ts == act + timedelta(minutes=10, seconds=5)
     # first wake-ups follow the regular 5-minute rhythm
     assert wakeups[0] == NOW and wakeups[1] == NOW + timedelta(minutes=5)
+
+
+# ------------------------------------------------ decided but not archived
+DECIDED = ("== পুরোনো অনুরোধ ==\n{{vandal|X}} বাধা দিন। [[User:R|R]] "
+           "10:00, 23 September 2026 (UTC)\n"
+           ":{{করা হয়নি}} প্রয়োজন নেই। [[User:Admin B|Admin B]] "
+           "12:40, 23 September 2026 (UTC)\n")
+
+
+def decided_wiki(text=DECIDED):
+    return FakeWiki(PAGE, "{{/শীর্ষ}}\n\n" + text, NOW)
+
+
+def test_decided_request_gets_only_archive_template(tmp_path):
+    w = decided_wiki()
+    bot = make_bot(w, tmp_path)
+    w.clock = datetime(2026, 9, 23, 12, 49, 59, tzinfo=UTC)   # last comment 12:40
+    assert bot.run_once() == datetime(2026, 9, 23, 12, 50, tzinfo=UTC)
+    assert w.edits == []
+    w.clock = datetime(2026, 9, 23, 12, 50, tzinfo=UTC)
+    bot.run_once()
+    assert len(w.edits) == 1
+    assert w.text.endswith("(UTC)\n{{subst:সহঅ}}\n")
+    assert w.edits[0]["summary"] == (
+        "/* পুরোনো অনুরোধ */ বট: অনুরোধটি আগেই {{করা হয়নি}} দিয়ে চিহ্নিত করা হয়েছে, "
+        "কিন্তু সংগ্রহশালাভুক্তির টেমপ্লেট যোগ করা হয়নি; শেষ মন্তব্যের ১০ মিনিট পরেও "
+        "কেউ যোগ না করায় স্বয়ংক্রিয়ভাবে {{সহঅ}} যোগ করা হলো। (স্বয়ংক্রিয় সম্পাদনা)")
+    w.clock += timedelta(minutes=5)          # the literal {{subst:সহঅ}} counts too
+    bot.run_once()
+    assert len(w.edits) == 1
+
+
+def test_later_comment_restarts_archive_wait(tmp_path):
+    w = decided_wiki(DECIDED + "::ধন্যবাদ। [[User:R|R]] 12:55, 23 September 2026 (UTC)\n")
+    w.clock = datetime(2026, 9, 23, 13, 4, tzinfo=UTC)
+    assert make_bot(w, tmp_path).run_once() == datetime(2026, 9, 23, 13, 5, tzinfo=UTC)
+    assert w.edits == []
+
+
+def test_unsigned_decision_waits_from_first_seen(tmp_path):
+    text = DECIDED.replace(":{{করা হয়নি}} প্রয়োজন নেই। [[User:Admin B|Admin B]] "
+                           "12:40, 23 September 2026 (UTC)", "{{done}}")
+    w = decided_wiki(text)                   # only the 10:00 signature, before {{done}}
+    bot = make_bot(w, tmp_path)
+    bot.run_once()                           # first seen at 13:00
+    w.clock = NOW + timedelta(minutes=9, seconds=59)
+    bot.run_once()
+    assert w.edits == []
+    w.clock = NOW + timedelta(minutes=10)
+    bot.run_once()
+    assert len(w.edits) == 1
+
+
+def test_already_archived_and_doing_are_not_touched(tmp_path):
+    archived = DECIDED + ("<!--x-->{{সমাধান হওয়া অনুচ্ছেদ|1=—[[User:Admin B|Admin B]] "
+                          "12:41, 23 September 2026 (UTC)|t=20260923124100}}<!--y-->\n")
+    doing = ("== চলমান ==\n{{vandal|Y}} বাধা দিন। [[User:R|R]] 10:00, 23 September 2026 (UTC)\n"
+             ":{{Doing}} [[User:Admin B|Admin B]] 10:05, 23 September 2026 (UTC)\n")
+    commented = ("== মন্তব্যে ==\n{{vandal|Z}} বাধা দিন। [[User:R|R]] 10:00, 23 September 2026 (UTC)\n"
+                 "<!-- {{done}} -->\n")
+    w = decided_wiki(archived + doing + commented)
+    bot = make_bot(w, tmp_path)
+    w.clock = NOW + timedelta(hours=5)
+    bot.run_once()
+    assert w.edits == []
+
+
+def test_archiving_decided_requests_can_be_turned_off(tmp_path):
+    w = decided_wiki()
+    make_bot(w, tmp_path, archive_decided_requests=False).run_once()
+    assert w.edits == []
