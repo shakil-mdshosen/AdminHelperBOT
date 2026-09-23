@@ -1,0 +1,34 @@
+{
+  "_পড়ুন": "AdminHelperBot-এর প্রযুক্তিগত সেটিং। বট চালু হলে এই ফাইলটি নিজে থেকেই পড়ে (-c দিতে হয় না)। '_' দিয়ে শুরু হওয়া লাইনগুলো শুধু ব্যাখ্যা, বট এগুলো উপেক্ষা করে। বাংলা লেখা (পাতার বার্তা, সারাংশ) এখানে নয়, adminhelperbot/texts.toml-এ। পাসওয়ার্ড এখানে রাখবেন না: ADMINHELPERBOT_USERNAME ও ADMINHELPERBOT_PASSWORD environment variable ব্যবহার করুন।",
+
+  "_উইকি": "কোন উইকিতে কাজ করবে। assert_mode: বট ফ্ল্যাগ পাওয়ার আগে পরীক্ষার সময় \"user\", পরে \"bot\"।",
+  "api_url": "https://bn.wikipedia.org/w/api.php",
+  "meta_api_url": "https://meta.wikimedia.org/w/api.php",
+  "user_agent": "AdminHelperBot/1.0 (https://github.com/shakil-mdshosen/AdminHelperBOT) python-requests",
+  "assert_mode": "bot",
+  "maxlag": 5,
+
+  "_সময়": "মিনিট/ঘণ্টায়। check_interval: কত মিনিট পরপর পাতা দেখবে; done_grace: বাধা/লকের কত মিনিট পর 'করা হয়েছে' লিখবে; archive_grace: {{করা হয়েছে}}/{{করা হয়নি}} দেওয়া অনুরোধে শেষ মন্তব্যের কত মিনিট পর {{subst:সহঅ}} দেবে; stale: অস্থায়ী অ্যাকাউন্টের বাসি নিয়মের ঘণ্টা; tolerance: রিপোর্টের কত মিনিট আগের বাধাও উত্তর হিসেবে গণ্য।",
+  "check_interval_minutes": 5,
+  "done_grace_minutes": 10,
+  "archive_grace_minutes": 10,
+  "stale_no_action_hours": 72,
+  "stale_inactivity_hours": 60,
+  "action_before_report_tolerance_minutes": 60,
+  "count_partial_blocks": true,
+  "max_edits_per_run": 25,
+
+  "_আচরণ": "archive_decided_requests: সিদ্ধান্ত-হওয়া অনুরোধে {{subst:সহঅ}} যোগ করবে কি না; stale_add_archive_template: বাসি অনুরোধে {{subst:সহঅ}}; reply_indent: উত্তরের শুরুতে ':' চাইলে; display_tz_offset_minutes: সময় লেখার সময়-অঞ্চল (০ = ইউটিসি, ৩৬০ = বাংলাদেশ; লেবেলটি texts.toml-এ); require_block_keywords: শুধু বাধাদানের অনুরোধে কাজ।",
+  "archive_decided_requests": true,
+  "stale_add_archive_template": true,
+  "reply_indent": "",
+  "display_tz_offset_minutes": 0,
+  "require_block_keywords": true,
+  "temp_account_regex": "~\\d{4}-\\d+(?:-\\d+)*",
+
+  "_ফাইল_ও_নিরাপত্তা": "texts_file: null = adminhelperbot/texts.toml; run_page: জরুরি বন্ধের পাতা (null = বন্ধ-সুবিধা নেই), পাতায় 'চালু' থাকলে তবেই বট সম্পাদনা করে; state_file: বটের ছোট স্মৃতি-ফাইল; dry_run: true হলে কোনো সম্পাদনা করে না, শুধু দেখায়।",
+  "texts_file": null,
+  "run_page": "ব্যবহারকারী:AdminHelperBot/চালু",
+  "state_file": "state.json",
+  "dry_run": false
+}

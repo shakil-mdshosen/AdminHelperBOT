@@ -80,13 +80,11 @@ Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয
 ```bash
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
-cp config.example.json config.json
-
 export ADMINHELPERBOT_USERNAME='AdminHelperBot@AdminHelperBot'   # বিশেষ:BotPasswords
 export ADMINHELPERBOT_PASSWORD='…'
 
-venv/bin/python -m adminhelperbot -c config.json --once --dry-run   # শুধু দেখায়, সম্পাদনা করে না
-venv/bin/python -m adminhelperbot -c config.json                    # নিরবচ্ছিন্নভাবে চলে
+venv/bin/python -m adminhelperbot --once --dry-run   # শুধু দেখায়, সম্পাদনা করে না
+venv/bin/python -m adminhelperbot                    # নিরবচ্ছিন্নভাবে চলে
 ```
 
 বিস্তারিত (বট ফ্ল্যাগ, Toolforge, সমস্যা সমাধান): **[docs/deployment.md](docs/deployment.md)**।
@@ -97,9 +95,17 @@ venv/bin/python -m adminhelperbot -c config.json                    # নির�
 
 ## কনফিগারেশন (প্রযুক্তিগত সেটিং)
 
-সব মান [`adminhelperbot/config.py`](adminhelperbot/config.py)-এ আছে; JSON ফাইল (`-c config.json`) দিয়ে যেকোনোটি বদলানো যায়। অজানা কী দিলে বট চালু হয় না, তাই বানান ভুল ধরা পড়ে।
+সব প্রযুক্তিগত সেটিং রিপোজিটরির মূল ফোল্ডারের **[`config.json`](config.json)** ফাইলে আছে (`README.md`-এর পাশেই)। বট চালু হলে ফাইলটি নিজে থেকেই পড়ে, `-c` দিতে হয় না। কোন ফাইল পড়া হলো তা লগের শুরুতে `Config: …` লাইনে দেখা যায়।
 
-| কী | ডিফল্ট | অর্থ |
+* ফাইলের প্রতিটি অংশের আগে `"_…"` দিয়ে শুরু হওয়া বাংলা ব্যাখ্যা আছে। বট এগুলো উপেক্ষা করে (JSON-এ মন্তব্য লেখার এটাই উপায়)।
+* অজানা বা ভুল বানানের কী দিলে বট চালু হয় না, তাই বানান ভুল সঙ্গে সঙ্গে ধরা পড়ে।
+* ফাইলে কোনো কী না থাকলে [`adminhelperbot/config.py`](adminhelperbot/config.py)-এর ডিফল্ট মান ব্যবহার হয়।
+* ফাইলের ভেতরের আপেক্ষিক পথ (`state.json`, `texts_file`) ফাইলটির নিজের ফোল্ডার থেকে ধরা হয়।
+* অন্য একটি ফাইল ব্যবহার করতে: `python -m adminhelperbot -c /path/to/my-config.json`।
+* **পাসওয়ার্ড এই ফাইলে রাখবেন না।** এটি GitHub-এ থাকে; পরিচয়পত্র environment variable দিয়ে দিন।
+* `run_page` দেওয়া আছে `ব্যবহারকারী:AdminHelperBot/চালু`। উইকিতে পাতাটি তৈরি করে তাতে `চালু` না লেখা পর্যন্ত বট কোনো সম্পাদনা করবে না ([বিস্তারিত](docs/deployment.md))।
+
+| কী | `config.json`-এ মান | অর্থ |
 |---|---|---|
 | `check_interval_minutes` | 5 | কত মিনিট পরপর পাতা দেখা হবে |
 | `done_grace_minutes` | 10 | পদক্ষেপের পর কত মিনিট অপেক্ষা |
@@ -114,7 +120,7 @@ venv/bin/python -m adminhelperbot -c config.json                    # নির�
 | `display_tz_offset_minutes` | 0 | সময় কোন সময়-অঞ্চলে লেখা হবে (বাংলাদেশ সময়: 360; লেবেলটি `texts.toml`-এ) |
 | `texts_file` | null | অন্য একটি বাংলা লেখার ফাইল ব্যবহার করতে |
 | `assert_mode` | bot | বট ফ্ল্যাগের আগে `user` |
-| `run_page` | null | জরুরি বন্ধের পাতা |
+| `run_page` | `ব্যবহারকারী:AdminHelperBot/চালু` | জরুরি বন্ধের পাতা (`null` = এই সুবিধা বন্ধ) |
 | `temp_account_regex` | `~\d{4}-\d+(?:-\d+)*` | অস্থায়ী অ্যাকাউন্টের নামের ধরন |
 
 টেমপ্লেট ও মূলশব্দের তালিকা বাংলা বলে `texts.toml`-এর `[detection]` অংশে আছে।
@@ -135,6 +141,11 @@ python -m pytest -q        # ৮৪টি পরীক্ষা (Python ৩.১�
 ## কোড কাঠামো
 
 ```
+AdminHelperBOT/            (রিপোজিটরির মূল ফোল্ডার)
+  config.json   প্রযুক্তিগত সেটিং  ← বট নিজে থেকেই পড়ে
+  jobs.yaml     Toolforge job
+  docs/         নথি
+  tests/        পরীক্ষা
 adminhelperbot/
   texts.toml    সব বাংলা লেখা
   texts.py      texts.toml পড়া ও যাচাই

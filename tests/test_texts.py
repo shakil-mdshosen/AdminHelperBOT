@@ -111,5 +111,26 @@ def test_toml_syntax_error_is_reported(tmp_path):
         Texts.load(write(tmp_path, DEFAULT.replace('page_title = "', 'page_title = ', 1)))
 
 
-def test_example_config_loads():
-    Config.load(str(PKG.parent / "config.example.json"))
+def test_repo_config_json_is_complete_and_loaded_by_default():
+    """config.json at the repository root lists every setting and is read
+    automatically; it must never hold credentials."""
+    import json
+    from dataclasses import fields
+    path = PKG.parent / "config.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    keys = {k for k in data if not k.startswith("_")}
+    expected = {f.name for f in fields(Config)} - {"texts", "source", "username", "password"}
+    assert keys == expected
+    cfg = Config.load()
+    assert cfg.source == str(path.resolve())
+    assert cfg.state_file == str(PKG.parent.resolve() / "state.json")
+
+
+def test_comment_keys_ignored_and_unknown_keys_rejected(tmp_path):
+    ok = tmp_path / "ok.json"
+    ok.write_text('{"_note": "x", "done_grace_minutes": 7}', encoding="utf-8")
+    assert Config.load(str(ok)).done_grace_minutes == 7
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"done_grace_minutse": 7}', encoding="utf-8")
+    with pytest.raises(ValueError, match="done_grace_minutse"):
+        Config.load(str(bad))

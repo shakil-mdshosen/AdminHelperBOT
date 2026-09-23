@@ -16,7 +16,8 @@ def main(argv=None) -> int:
         prog="adminhelperbot",
         description=default_texts().get("cli.description"),
     )
-    ap.add_argument("-c", "--config", help="JSON config file")
+    ap.add_argument("-c", "--config",
+                    help="JSON config file (default: config.json in the repository root)")
     ap.add_argument("--once", action="store_true",
                     help="check the page once and exit (for cron / Toolforge jobs)")
     ap.add_argument("--dry-run", action="store_true",
@@ -29,6 +30,8 @@ def main(argv=None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     cfg = Config.load(args.config)
+    logging.getLogger("adminhelperbot").info(
+        "Config: %s", cfg.source or "built-in defaults (no config.json found)")
     if args.dry_run:
         cfg.dry_run = True
     bot = AdminHelperBot(cfg)

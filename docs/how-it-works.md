@@ -261,10 +261,10 @@ Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয
 
 ```
 adminhelperbot/
-├── __main__.py   কমান্ড লাইন: --once, --dry-run, -c config.json
+├── __main__.py   কমান্ড লাইন: --once, --dry-run, -c অন্য-config.json
 ├── texts.toml    সব বাংলা লেখা (পাতার লেখা, সারাংশ, টেমপ্লেট, মূলশব্দ)
 ├── texts.py      texts.toml পড়া ও যাচাই
-├── config.py     প্রযুক্তিগত সেটিং (JSON দিয়ে বদলানো যায়)
+├── config.py     প্রযুক্তিগত সেটিং পড়া (মান থাকে মূল ফোল্ডারের config.json-এ)
 ├── api.py        MediaWiki API: লগইন, maxlag, পুনরায় চেষ্টা, সার্ভারের ঘড়ি
 ├── timeutil.py   বাংলা সংখ্যা, স্বাক্ষরের সময় পড়া, বাংলা তারিখ লেখা
 ├── parser.py     অনুচ্ছেদ, রিপোর্ট করা অ্যাকাউন্ট, বন্ধের চিহ্ন, মূলশব্দ

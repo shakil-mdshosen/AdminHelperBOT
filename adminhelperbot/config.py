@@ -1,4 +1,8 @@
-"""Bot configuration. Every value can be overridden from a JSON file.
+"""Bot configuration.
+
+The settings live in config.json at the repository root, which is read
+automatically (another file can be given with -c). Keys starting with "_" are
+comments. Defaults below apply to anything the file leaves out.
 
 All Bangla text (page messages, edit summaries, template names, keywords …)
 lives in texts.toml, not here; see texts.py.
@@ -9,10 +13,13 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field, fields
+from pathlib import Path
 from typing import Optional
 
 from . import timeutil
 from .texts import Texts, default_texts
+
+DEFAULT_CONFIG_FILE = Path(__file__).resolve().parent.parent / "config.json"
 
 
 @dataclass
@@ -64,19 +71,31 @@ class Config:
     dry_run: bool = False
 
     texts: Texts = field(default_factory=default_texts, repr=False)
+    source: Optional[str] = None          # the config file that was read
 
     @classmethod
     def load(cls, path: Optional[str] = None) -> "Config":
+        """Read *path*, or config.json at the repository root if it exists."""
         cfg = cls()
+        if path is None and DEFAULT_CONFIG_FILE.exists():
+            path = str(DEFAULT_CONFIG_FILE)
+        cfg.source = path
         if path:
             with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
-            known = {f.name for f in fields(cls)} - {"texts"}
+            data = {k: v for k, v in data.items() if not k.startswith("_")}
+            known = {f.name for f in fields(cls)} - {"texts", "source"}
             unknown = set(data) - known
             if unknown:
                 raise ValueError(f"Unknown config keys: {sorted(unknown)}")
             for key, value in data.items():
                 setattr(cfg, key, value)
+            # Relative file names are relative to the config file's folder.
+            base = Path(path).resolve().parent
+            for key in ("state_file", "texts_file"):
+                value = getattr(cfg, key)
+                if value and not Path(value).is_absolute():
+                    setattr(cfg, key, str(base / value))
         cfg.username = os.environ.get("ADMINHELPERBOT_USERNAME", cfg.username)
         cfg.password = os.environ.get("ADMINHELPERBOT_PASSWORD", cfg.password)
         if cfg.texts_file:

@@ -5,6 +5,5 @@ venv/
 .venv/
 state.json
 state.json.tmp
-config.json
 *.log
 .env

@@ -20,7 +20,6 @@ git clone https://github.com/shakil-mdshosen/AdminHelperBOT.git
 cd AdminHelperBOT
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
-cp config.example.json config.json
 
 export ADMINHELPERBOT_USERNAME='AdminHelperBot@AdminHelperBot'
 export ADMINHELPERBOT_PASSWORD='…'
@@ -29,8 +28,10 @@ export ADMINHELPERBOT_PASSWORD='…'
 **প্রথমে সবসময় dry-run:**
 
 ```bash
-venv/bin/python -m adminhelperbot -c config.json --once --dry-run
+venv/bin/python -m adminhelperbot --once --dry-run
 ```
+
+সেটিং আসে রিপোজিটরির মূল ফোল্ডারের [`config.json`](../config.json) থেকে। বট এটি নিজে থেকেই পড়ে, এবং লগের প্রথম দিকে `Config: /…/AdminHelperBOT/config.json` দেখায়। অন্য ফাইল দিতে চাইলে `-c path/to/file.json` ব্যবহার করুন।
 
 এটি লগইন ছাড়াও চলে (পড়ার জন্য লগইন লাগে না)। প্রতিটি অনুচ্ছেদের জন্য লগে একটি লাইন আসে:
 
@@ -48,8 +49,8 @@ Marking [বাধাদানের অনুরোধ …] as stale
 সব ঠিক থাকলে:
 
 ```bash
-venv/bin/python -m adminhelperbot -c config.json --once   # একবার
-venv/bin/python -m adminhelperbot -c config.json          # নিরবচ্ছিন্ন (প্রস্তাবিত)
+venv/bin/python -m adminhelperbot --once   # একবার
+venv/bin/python -m adminhelperbot          # নিরবচ্ছিন্ন (প্রস্তাবিত)
 ```
 
 বট ফ্ল্যাগ পাওয়ার আগে পরীক্ষামূলক সম্পাদনার জন্য `config.json`-এ `"assert_mode": "user"` দিন (অনুমোদন প্রক্রিয়ার নিয়ম মেনে)। ফ্ল্যাগ পাওয়ার পর `"bot"` করুন।
@@ -63,7 +64,7 @@ git clone https://github.com/shakil-mdshosen/AdminHelperBOT.git
 cd AdminHelperBOT
 toolforge jobs run setup --image python3.11 --wait \
   --command "cd ~/AdminHelperBOT && python3 -m venv venv && venv/bin/pip install -r requirements.txt"
-cp config.example.json config.json         # প্রয়োজনে সম্পাদনা
+nano config.json                           # প্রয়োজনে সেটিং বদলান
 
 toolforge envvars create ADMINHELPERBOT_USERNAME 'AdminHelperBot@AdminHelperBot'
 toolforge envvars create ADMINHELPERBOT_PASSWORD '…'
@@ -79,7 +80,7 @@ tail -f ~/adminhelperbot.out ~/adminhelperbot.err
 
 ## ৪. বাংলা লেখা বদলানো
 
-`adminhelperbot/texts.toml` সম্পাদনা করে বট আবার চালু করুন (`toolforge jobs restart adminhelperbot`)। আগে `--once --dry-run` দিয়ে দেখে নিতে পারেন। বিস্তারিত: [texts.md](texts.md)। `git pull`-এর সময় নিজের পরিবর্তন হারাতে না চাইলে ফাইলটি কপি করে (যেমন `~/my-texts.toml`) `config.json`-এ `"texts_file": "/data/project/<tool>/my-texts.toml"` দিন।
+`adminhelperbot/texts.toml` সম্পাদনা করে বট আবার চালু করুন (`toolforge jobs restart adminhelperbot`)। আগে `--once --dry-run` দিয়ে দেখে নিতে পারেন। বিস্তারিত: [texts.md](texts.md)। `config.json` ও `texts.toml` দুটোই রিপোজিটরিতে থাকে। Toolforge-এ সরাসরি বদলালে `git pull`-এ দ্বন্দ্ব হতে পারে। তাই পরিবর্তনগুলো GitHub-এ commit করাই সবচেয়ে ভালো। অথবা `config.json`-এর কপি রেখে `-c ~/my-config.json` দিয়ে চালান (তখন `jobs.yaml`-এর command-এও `-c` যোগ করুন)। `git pull`-এর সময় নিজের পরিবর্তন হারাতে না চাইলে ফাইলটি কপি করে (যেমন `~/my-texts.toml`) `config.json`-এ `"texts_file": "/data/project/<tool>/my-texts.toml"` দিন।
 
 ## ৫. হালনাগাদ
 
@@ -116,5 +117,5 @@ GitHub-এ প্রতিটি push-এ `.github/workflows/tests.yml` স্�
 
 ## ৮. নিরাপত্তা নোট
 
-* পাসওয়ার্ড কখনো কোডে বা `config.json`-এ রাখবেন না; environment variable ব্যবহার করুন। `config.json` ও `state.json` `.gitignore`-এ আছে।
-* বট শুধু `page_title`-এ দেওয়া একটি পাতাতেই সম্পাদনা করে (`nocreate=1`)।
+* পাসওয়ার্ড কখনো কোডে বা `config.json`-এ রাখবেন না (`config.json` GitHub-এ থাকে); environment variable ব্যবহার করুন। `state.json` `.gitignore`-এ আছে।
+* বট শুধু `texts.toml`-এর `page_title`-এ দেওয়া একটি পাতাতেই সম্পাদনা করে (`nocreate=1`)।
