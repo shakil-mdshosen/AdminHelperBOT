@@ -35,11 +35,11 @@ The bot acts when **every** account reported in a section (registered, temporary
 If nobody has marked the request **10 minutes after the last action**, the bot appends:
 
 ```
-Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয়ংক্রিয় বট বার্তা)</small> --~~~~
+:Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~
 {{subst:সহঅ}}
 ```
 
-The first line reads "Done by Ferdous (automated bot message)". The name is the administrator or steward who acted. If several people acted, all their names appear, e.g. `Steward X ও Yahya কর্তৃক …` ("by Steward X and Yahya"). `{{subst:সহঅ}}` tags the request for archiving.
+The first line reads "Done by Ferdous (automated message)". It is indented with `:` because `reply_indent` is `":"` in `config.json`. The name is the administrator or steward who acted. If several people acted, all their names appear, e.g. `Steward X ও Yahya কর্তৃক …` ("by Steward X and Yahya"). `{{subst:সহঅ}}` tags the request for archiving.
 
 ### 2. Stale temporary-account reports
 
@@ -51,7 +51,7 @@ The bot closes a report about a temporary account when **both** of these hold:
 It writes:
 
 ```
-বাধা দেওয়ার প্রয়োজন নেই, অস্থায়ী অ্যাকাউন্ট থেকে সর্বশেষ সম্পাদনা ২১ জুন ২০২৬, ১১:৫০ (ইউটিসি) টায় হয়েছে। <small>(স্বয়ংক্রিয় বট বার্তা)</small> --~~~~
+:বাধা দেওয়ার প্রয়োজন নেই, অস্থায়ী অ্যাকাউন্ট থেকে সর্বশেষ সম্পাদনা ২১ জুন ২০২৬, ১১:৫০ (ইউটিসি) টায় হয়েছে। <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~
 {{subst:সহঅ}}
 ```
 
@@ -100,7 +100,7 @@ The bot deliberately leaves a request alone when any of these apply:
 * Only some of the reported accounts were handled.
 * The block was placed long before the report (more than 60 minutes earlier).
 * A registered account was not actioned; the stale rule applies to temporary accounts only.
-* The emergency stop page does not say `চালু` ("on").
+* The emergency stop page (`run_page`) does not say `চালু` ("on").
 
 When in doubt, the bot leaves the decision to humans. All of these rules are tested against a copy of the real noticeboard ([tests/test_real_page.py](tests/test_real_page.py)).
 
@@ -146,7 +146,7 @@ For the full deployment steps (bot account, bot flag, Toolforge), see **[docs/de
 
 | Situation | What to do |
 |---|---|
-| **Pause from the wiki** (no server access) | Edit `ব্যবহারকারী:AdminHelperBot/চালু` and replace `চালু` with anything else, e.g. `বন্ধ`. Editing stops within about 5 minutes. Change it back to resume. |
+| **Pause from the wiki** (no server access) | Edit the stop page set as `run_page` in `config.json` (currently `ব্যবহারকারী:MdsShakil/খেলাঘর_২`) and replace `চালু` with anything else, e.g. `বন্ধ`. Editing stops within about 5 minutes. Change it back to resume. |
 | **Kill the Toolforge job** | `toolforge jobs delete adminhelperbot` (a continuous job restarts itself if only the process dies). Start again with `toolforge jobs load jobs.yaml`. |
 | **Restart after a config/text change** | `toolforge jobs restart adminhelperbot` |
 | **Local run** | Press `Ctrl+C`, or run `pkill -f adminhelperbot` |
@@ -177,14 +177,14 @@ All technical settings live in **[`config.json`](config.json)** in the repositor
 | `count_partial_blocks` | `true` | Treat partial blocks as an action |
 | `archive_decided_requests` | `true` | Add `{{subst:সহঅ}}` to decided but untagged requests |
 | `stale_add_archive_template` | `true` | Add `{{subst:সহঅ}}` to stale requests |
-| `reply_indent` | `""` | Indentation of the bot's comment line, e.g. `":"` or `"::"` (the `{{subst:সহঅ}}` line is never indented) |
+| `reply_indent` | `":"` | Indentation of the bot's comment line, e.g. `":"` or `"::"` (the `{{subst:সহঅ}}` line is never indented) |
 | `display_tz_offset_minutes` | `0` | Time zone offset for times the bot writes (`360` = Bangladesh; the label is in `texts.toml`) |
 | `require_block_keywords` | `true` | Act on block requests only |
 | `temp_account_regex` | `~\d{4}-\d+(?:-\d+)*` | Pattern of temporary account names |
 | `assert_mode` | `"bot"` | `"user"` until the account has the bot flag |
 | `maxlag` | `5` | MediaWiki `maxlag` value |
 | `max_edits_per_run` | `25` | Safety limit per check |
-| `run_page` | `"ব্যবহারকারী:AdminHelperBot/চালু"` | Emergency stop page; the bot edits only while it contains `চালু`. **Create this page before the first run**, or set `null` to disable the feature. |
+| `run_page` | `"ব্যবহারকারী:MdsShakil/খেলাঘর_২"` | Emergency stop page; the bot edits only while this page contains `চালু`. **The page must exist and contain `চালু` before the first run**; set `null` to disable the feature. |
 | `texts_file` | `null` | Use a different Bangla texts file (`null` = `adminhelperbot/texts.toml`) |
 | `state_file` | `"state.json"` | Small file where the bot remembers when it first saw things |
 | `dry_run` | `false` | Never edit, only log |
