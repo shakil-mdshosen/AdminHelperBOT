@@ -39,7 +39,7 @@ done_line = ":{{করা হয়েছে}} — $actors পদক্ষেপ
 |---|---|
 | `page.done_line` | `$actors` |
 | `page.stale_line` | `$subject`, `$last_edit` |
-| `page.stale_line_no_edits` | `$subject` |
+| `page.stale_line_no_edits` | `$subject`, `$inactivity_hours` |
 | `summary.done` | `$details`, `$grace` |
 | `summary.action_*` | `$account`, `$actor`, `$when` |
 | `summary.when` | `$time` |

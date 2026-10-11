@@ -124,6 +124,14 @@ def test_stale_temp_account(wiki, tmp_path):
     assert len(wiki.edits) == 1
 
 
+def test_stale_temp_account_with_no_edits_mentions_inactivity_hours(wiki, tmp_path):
+    wiki.contribs.pop("~2026-10001-01", None)
+    wiki.clock = datetime(2026, 9, 23, 10, 0, tzinfo=UTC)
+    make_bot(wiki, tmp_path).run_once()
+    sec = section_text(wiki.text, "অস্থায়ী অ্যাকাউন্ট ~2026-10001-01 কে বাধাদান")
+    assert "গত ৬০ ঘণ্টায় কোনো সম্পাদনা হয়নি" in sec
+
+
 def test_edit_conflict_is_retried_on_fresh_text(wiki, tmp_path, monkeypatch):
     monkeypatch.setattr("adminhelperbot.bot.time.sleep", lambda s: None)
     wiki.block("Vandal Account", "Admin A", NOW - timedelta(hours=1))
