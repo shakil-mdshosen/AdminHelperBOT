@@ -13,7 +13,7 @@ DEFAULT_TEXTS_FILE = Path(__file__).with_name("texts.toml")
 PLACEHOLDERS: Dict[str, set] = {
     "page.done_line": {"actors"},
     "page.stale_line": {"subject", "last_edit"},
-    "page.stale_line_no_edits": {"subject"},
+    "page.stale_line_no_edits": {"subject", "inactivity_hours"},
     "summary.done": {"details", "grace"},
     "summary.action_local_block": {"account", "actor", "when"},
     "summary.action_local_partial_block": {"account", "actor", "when"},

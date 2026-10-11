@@ -70,7 +70,8 @@ def stale_text(decision: Decision, cfg: Config) -> str:
         line = t.render("page.stale_line", subject=subject,
                         last_edit=_time(decision.last_edit, cfg))
     else:
-        line = t.render("page.stale_line_no_edits", subject=subject)
+        line = t.render("page.stale_line_no_edits", subject=subject,
+                        inactivity_hours=to_bn_digits(str(cfg.stale_inactivity_hours)))
     if cfg.stale_add_archive_template:
         return _lines(cfg, line, t.get("page.archive_line"))
     return _lines(cfg, line)
