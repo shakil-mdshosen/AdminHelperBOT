@@ -35,7 +35,7 @@ The bot acts when **every** account reported in a section (registered, temporary
 If nobody has marked the request **10 minutes after the last action**, the bot appends:
 
 ```
-:Ferdous কর্তৃক {{করা হয়েছে}} <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~
+:Ferdous কর্তৃক {{করা হয়েছে}}। Swarup Das Official-কে প্রশাসক Ferdous স্থানীয়ভাবে বাধা দিয়েছেন (২৩ সেপ্টেম্বর ২০২৬, ০৫:৫০ (ইউটিসি)) <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~
 {{subst:সহঅ}}
 ```
 

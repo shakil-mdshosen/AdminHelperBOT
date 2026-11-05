@@ -57,8 +57,12 @@ def _lines(cfg: Config, *lines: str) -> str:
 # ------------------------------------------------------------------ page text
 def done_text(decision: Decision, cfg: Config) -> str:
     t = cfg.texts
+    details = t.get("summary.details_separator").join(
+        _describe(n, ev, cfg) for n, ev in decision.chosen.items())
     return _lines(cfg,
-                  t.render("page.done_line", actors=join_names(actors_of(decision, cfg), cfg)),
+                  t.render("page.done_line",
+                           actors=join_names(actors_of(decision, cfg), cfg),
+                           details=details),
                   t.get("page.archive_line"))
 
 

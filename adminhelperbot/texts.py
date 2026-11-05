@@ -11,7 +11,7 @@ DEFAULT_TEXTS_FILE = Path(__file__).with_name("texts.toml")
 
 # Placeholders each text may use. Anything else is reported at startup.
 PLACEHOLDERS: Dict[str, set] = {
-    "page.done_line": {"actors"},
+    "page.done_line": {"actors", "details"},
     "page.stale_line": {"subject", "last_edit"},
     "page.stale_line_no_edits": {"subject", "inactivity_hours"},
     "summary.done": {"details", "grace"},

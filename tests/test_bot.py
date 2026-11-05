@@ -57,9 +57,10 @@ def test_local_block_marked_done_after_ten_minutes(wiki, tmp_path):
     bot.run_once()
     assert len(wiki.edits) == 1
     sec = section_text(wiki.text, "ব্যবহারকারী বাধাদানের অনুরোধ")
-    assert sec.endswith(
-        "Admin A কর্তৃক {{করা হয়েছে}} <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~\n"
-        "{{subst:সহঅ}}\n\n")
+    assert sec.endswith("{{subst:সহঅ}}\n\n")
+    assert ("Admin A কর্তৃক {{করা হয়েছে}}। Vandal Account-কে প্রশাসক Admin A "
+            "স্থানীয়ভাবে বাধা দিয়েছেন (২৩ সেপ্টেম্বর ২০২৬, ১২:৫২ (ইউটিসি)) "
+            "<small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~") in sec
     e = wiki.edits[0]
     assert e["summary"].startswith("/* ব্যবহারকারী বাধাদানের অনুরোধ */ বট:")
     assert "Vandal Account-কে প্রশাসক Admin A স্থানীয়ভাবে বাধা দিয়েছেন" in e["summary"]
