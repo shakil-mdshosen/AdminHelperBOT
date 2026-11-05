@@ -117,7 +117,9 @@ def test_local_block_marked_with_admin_name(wiki, tmp_path):
     [(old, new)] = changed_sections(BASE, wiki.text)
     assert old.title == "বাধাদানের অনুরোধ: Swarup Das Official"
     assert new.text == old.text.rstrip() + (
-        "\nFerdous কর্তৃক {{করা হয়েছে}} <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~"
+        "\nFerdous কর্তৃক {{করা হয়েছে}}। Swarup Das Official-কে প্রশাসক Ferdous "
+        "স্থানীয়ভাবে বাধা দিয়েছেন (২৩ সেপ্টেম্বর ২০২৬, ০৫:৫০ (ইউটিসি)) "
+        "<small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~"
         "\n{{subst:সহঅ}}\n\n")
     assert wiki.edits[0]["summary"] == (
         "/* বাধাদানের অনুরোধ: Swarup Das Official */ বট: অনুরোধটি সম্পন্ন হিসেবে চিহ্নিত ও "

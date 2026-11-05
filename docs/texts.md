@@ -24,10 +24,10 @@
 যেমন:
 
 ```toml
-done_line = "$actors কর্তৃক {{করা হয়েছে}} <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~"
+done_line = "$actors কর্তৃক {{করা হয়েছে}}। $details <small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~"
 ```
 
-এখানে `$actors`-এর জায়গায় বট প্রশাসক বা স্টুয়ার্ডের নাম বসায় (যেমন `Ferdous` বা `Steward X ও Yahya`)। বাকি সব হুবহু পাতায় যায়। শব্দগুলো সাজানো বা বদলানো যায়, যেমন:
+এখানে `$actors`-এর জায়গায় বট প্রশাসক বা স্টুয়ার্ডের নাম বসায় (যেমন `Ferdous` বা `Steward X ও Yahya`) এবং `$details`-এ কার বিরুদ্ধে কী পদক্ষেপ হয়েছে (সময়সহ) বসায়। বাকি সব হুবহু পাতায় যায়। শব্দগুলো সাজানো বা বদলানো যায়, যেমন:
 
 ```toml
 done_line = ":{{করা হয়েছে}} — $actors পদক্ষেপ নিয়েছেন। <small>(বট)</small> --~~~~"
@@ -37,7 +37,7 @@ done_line = ":{{করা হয়েছে}} — $actors পদক্ষেপ
 
 | লেখা | ব্যবহারযোগ্য `$নাম` |
 |---|---|
-| `page.done_line` | `$actors` |
+| `page.done_line` | `$actors`, `$details` |
 | `page.stale_line` | `$subject`, `$last_edit` |
 | `page.stale_line_no_edits` | `$subject`, `$inactivity_hours` |
 | `summary.done` | `$details`, `$grace` |
@@ -59,7 +59,7 @@ done_line = ":{{করা হয়েছে}} — $actors পদক্ষেপ
 
 ```
 Problems in texts.toml:
-  page.done_line: unknown placeholder $actor (allowed: $actors)
+  page.done_line: unknown placeholder $actor (allowed: $actors, $details)
   missing [page] stale_subject_one
   [datetime] months: exactly 12 names are needed
 ```

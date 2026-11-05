@@ -55,7 +55,7 @@ def test_default_file_is_valid():
 
 def test_custom_texts_change_what_the_bot_writes(tmp_path):
     custom = (DEFAULT
-              .replace('done_line = "$actors কর্তৃক {{করা হয়েছে}} '
+              .replace('done_line = "$actors কর্তৃক {{করা হয়েছে}}। $details '
                        '<small>(স্বয়ংক্রিয় বার্তা)</small> --~~~~"',
                        'done_line = ":{{করা হয়েছে}} — $actors বাধা দিয়েছেন। (বট) --~~~~"')
               .replace('tz_label = "ইউটিসি"', 'tz_label = "UTC"')
